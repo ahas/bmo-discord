@@ -1,0 +1,108 @@
+[
+  {
+    "id": "gateway/number-store",
+    "title": "Number store",
+    "what": "The gateway's own numbers on bun:sqlite: a number for every Discord channel, person and message, which messages were handed over, each room's voice and each DM's person, in gateway/src/store.ts.",
+    "files": [
+      "gateway/src/store.ts",
+      "gateway/src/machine.ts",
+      "docs/discord.md"
+    ],
+    "symbols": [
+      "Store",
+      "ArchivedMessage",
+      "holdChatMachine",
+      "chatMachine"
+    ],
+    "aliases": [],
+    "needs": [],
+    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+  },
+  {
+    "id": "gateway/reading-and-sending",
+    "title": "Reading and sending",
+    "what": "The provider's gateway side: a read message numbered, kept or handed over, the avatar voice, the room questions and every send with its refusals, in gateway/src/provider.ts and avatar.ts.",
+    "files": [
+      "gateway/src/provider.ts",
+      "gateway/src/avatar.ts",
+      "gateway/src/chat.ts",
+      "gateway/src/settings.ts",
+      "policy/discord.toml",
+      "lang/ko.toml",
+      "docs/discord.md"
+    ],
+    "symbols": [
+      "discordProvider",
+      "handleDiscordMessage",
+      "readAvatarMessage",
+      "inVoice"
+    ],
+    "aliases": [],
+    "needs": [
+      "gateway/number-store",
+      "gateway/rest-calls",
+      "gateway/sockets"
+    ],
+    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+  },
+  {
+    "id": "gateway/rest-calls",
+    "title": "Discord REST calls",
+    "what": "Every call the gateway makes on Discord's REST API: messages, edits, pictures, files, stickers, reactions, pins, typing and channel lookups, in gateway/src/api.ts.",
+    "files": [
+      "gateway/src/api.ts"
+    ],
+    "symbols": [
+      "sendMessage",
+      "sendFile",
+      "react",
+      "pin",
+      "channelName",
+      "directRecipient"
+    ],
+    "aliases": [],
+    "needs": [],
+    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+  },
+  {
+    "id": "gateway/seam-server",
+    "title": "Gateway seam server",
+    "what": "The gateway process: its loopback routes the service calls, the bearer check, the hand-over of each message to the service once, and the sockets started, in gateway/src/main.ts and service.ts.",
+    "files": [
+      "gateway/src/main.ts",
+      "gateway/src/service.ts",
+      "deploy/bmo-discord-gateway.service",
+      "docs/boundary-api.md"
+    ],
+    "symbols": [
+      "handToService"
+    ],
+    "aliases": [],
+    "needs": [
+      "gateway/reading-and-sending",
+      "gateway/number-store"
+    ],
+    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+  },
+  {
+    "id": "gateway/sockets",
+    "title": "Gateway sockets",
+    "what": "One Discord gateway socket per configured token: identify, heartbeat, resume and reopen, the intent refusal, and the reading of a dispatch into a message, in gateway/src/gateway.ts and events.ts.",
+    "files": [
+      "gateway/src/gateway.ts",
+      "gateway/src/events.ts",
+      "gateway/src/config.ts",
+      "docs/discord.md"
+    ],
+    "symbols": [
+      "openGateway",
+      "parseDispatch",
+      "identifyFrame",
+      "discordConfig",
+      "discordAccounts"
+    ],
+    "aliases": [],
+    "needs": [],
+    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+  }
+]

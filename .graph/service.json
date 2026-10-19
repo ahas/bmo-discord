@@ -1,0 +1,78 @@
+[
+  {
+    "id": "service/binary",
+    "title": "Service binary",
+    "what": "The bmo-discord binary: serve stands the routes up on the loopback with the receiver link, and health asks the running service whether it is ready, in src/bin/bmo-discord.rs.",
+    "files": [
+      "src/bin/bmo-discord.rs",
+      "deploy/bmo-discord.service",
+      "testbed.toml",
+      "README.md"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "api/provider-routes",
+      "service/declaration"
+    ],
+    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+  },
+  {
+    "id": "service/declaration",
+    "title": "Provider declaration",
+    "what": "The Discord provider as bmo-chat serves it: key, label, the four modes on their settings, the capabilities, numbering and health, every room question and send forwarded to the gateway, in src/provider.rs.",
+    "files": [
+      "src/provider.rs",
+      "src/config.rs",
+      "src/policy.rs",
+      "policy/discord.toml",
+      "lang/ko.toml",
+      "docs/discord.md"
+    ],
+    "symbols": [
+      "DiscordProvider",
+      "Config",
+      "POLICY",
+      "WORDS"
+    ],
+    "aliases": [],
+    "needs": [
+      "service/dialect",
+      "service/gateway-client"
+    ],
+    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+  },
+  {
+    "id": "service/dialect",
+    "title": "Discord markdown dialect",
+    "what": "The discord-markdown dialect: marks go out as written, a long answer divided at two thousand characters by bmo-markup, no fold and no fault, in src/dialect.rs.",
+    "files": [
+      "src/dialect.rs",
+      "policy/discord.toml",
+      "docs/discord.md"
+    ],
+    "symbols": [
+      "DiscordMarkdown"
+    ],
+    "aliases": [],
+    "needs": [],
+    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+  },
+  {
+    "id": "service/gateway-client",
+    "title": "Gateway client",
+    "what": "The service's one module calling the gateway over the loopback: its health, a send, the room questions and the owner's room, in src/gateway.rs.",
+    "files": [
+      "src/gateway.rs",
+      "docs/boundary-api.md"
+    ],
+    "symbols": [
+      "Gateway"
+    ],
+    "aliases": [],
+    "needs": [
+      "gateway/seam-server"
+    ],
+    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+  }
+]

@@ -21,10 +21,12 @@ declares, and hands what its rooms say to the receiver.
 | `lang/` | the words a person reads that this provider draws: the platform's label and the marks a message is handed over with |
 | `deploy/` | the two service units a deployment links: the Rust service and the bun gateway |
 | `docs/` | the canonical statements of what the provider does |
+| `.graph/` | this repository's code graph, written only by `bmo-graph` |
 
 At the root stand the Cargo manifest of the service's one package, the version in `VERSION`, `testbed.toml`
 (the testbed's declaration of how this repository is tested, checked, built and deployed), the Korean ledger
-the testbed's check reads, `rustfmt.toml` and `CLAUDE.md`.
+the testbed's check reads, `settings.example.env` (every setting both processes read, with neutral example
+values), `rustfmt.toml` and `CLAUDE.md`.
 
 ## Documents
 

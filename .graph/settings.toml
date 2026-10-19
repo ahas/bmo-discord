@@ -1,0 +1,7 @@
+repository = "bmo-discord"
+base = false
+
+[coverage]
+# Every tracked Rust and TypeScript file outside the tests, but these: the crate's root, which only lists its
+# modules, and the gateway's declaration of what a TOML import is.
+unindexed = ["src/lib.rs", "gateway/src/toml.d.ts"]

@@ -1,0 +1,22 @@
+# The gateway's user unit (docs/boundary-api.md): the bun process holding the Discord accounts' sockets and the
+# number store, run from the release's gateway/ with the same environment as the service. Marked restart:
+# restarted by every deployment just before the service.
+[Unit]
+Description=bmo-discord: the Discord gateway
+After=network-online.target
+ConditionPathExists=%h/.local/share/bmo/data/env/discord.env
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/share/bmo-discord/deploy
+EnvironmentFile=-%h/.local/share/bmo-discord/deploy/discord.env
+ExecStart=%h/.bun/bin/bun gateway/src/main.ts
+Restart=always
+RestartSec=2
+# The gateway closes its sockets and the store within the stop it is given.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
+# Linked, enabled and restarted before the bot service by every deployment.
+X-BMO-Deploy=restart
