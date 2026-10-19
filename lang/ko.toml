@@ -1,0 +1,7 @@
+# The words a person reads that the Discord provider draws (docs/discord.md): the platform's name as its
+# declaration's label, the marks a message carrying a file is handed over with ({name} is the file's name), and
+# the name an author Discord gives no name for is handed over under.
+label = "디스코드"
+picture_mark = "[사진]"
+document_kept = "[파일 {name}]"
+unknown_sender = "알 수 없는 사람"

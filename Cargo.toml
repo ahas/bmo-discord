@@ -1,0 +1,32 @@
+# The Discord provider service: one package at the root. The gateway in `gateway/` is a bun package, outside
+# Cargo.
+[package]
+name = "bmo-discord"
+description = "The Discord chat provider: the declaration, the discord-markdown dialect and the protocol's routes, with the gateway behind them."
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+async-trait = "0.1.92"
+axum = { version = "0.8.4", default-features = false, features = ["http1", "json", "tokio"] }
+bmo-chat = { path = "../../base/chat/provider" }
+bmo-markup = { path = "../../base/markup" }
+# The service binary's verbs.
+clap = { version = "4.5.40", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
+# The gateway is reached over the loopback, the receiver wherever its address names.
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.138"
+thiserror = "2.0.18"
+tokio = { version = "1.53.2", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+toml = { version = "0.8.23", default-features = false, features = ["parse"] }
+
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+incremental = false
+
+[profile.release]
+debug = false
+strip = "debuginfo"

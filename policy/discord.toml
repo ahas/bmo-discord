@@ -1,0 +1,16 @@
+# The Discord provider's fixed values (docs/discord.md). The words a person reads are in `lang/ko.toml`.
+
+# What the provider sends, as its declaration's `can`, and the voices whose answers go out unpinned: the
+# owner's account only reads beside the bot, so an answer never points at what it read.
+can = ["text", "replyTo", "photo", "document", "sticker", "reaction", "pin", "typing", "edit"]
+unpinned = ["human-reader"]
+
+# The `discord-markdown` dialect: the longest one message and one caption hold, in characters (a longer answer
+# goes out as consecutive messages, cut at its own markdown's seams), the most embeds one message carries, the
+# largest file a guild with no boost takes, and what a writer in such a room is told its marks become.
+[dialect]
+name = "discord-markdown"
+text_limit = 2000
+album_photos = 10
+file_bytes = 26214400
+writing = "This room reads markdown itself: bold, italic, strikethrough, spoilers, inline code, code blocks and quotes all show as marks, and nothing is converted or escaped on the way out. Nothing is folded here, and a message longer than two thousand characters goes out as consecutive messages."
