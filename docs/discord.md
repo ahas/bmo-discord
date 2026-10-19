@@ -33,8 +33,8 @@ is set up and what it can do.
 | `numbering` | `assigned` for rooms, people and messages (「Numbering」) |
 | `speakers` | false |
 
-The modes, each standing on its own setting and read when asked, so a token put in place is a mode standing
-up:
+The modes, each standing on its own setting. The service reads the settings as it starts, so a token put in
+place stands its mode up with the next start; the gateway reads them each time it opens a socket or sends:
 
 | Voice | Reach | Active when | `canReplyTo` |
 |---|---|---|---|
@@ -60,7 +60,8 @@ it delivered, which `policy/discord.toml` keeps as the voices whose answers go o
     never meet the intent refusal;
   - the account's own id is read off the token's first segment, as the bot's is;
   - group DMs are rooms of this provider, beside guild channels and one-to-one DMs.
-- **Every socket identifies itself** with the client name `BMO_DISCORD_CLIENT_NAME` gives.
+- **The bot account's socket identifies itself** with the client name `BMO_DISCORD_CLIENT_NAME` gives; a user
+  token's socket describes itself as a desktop browser client does.
 
 ## Which account answers a room
 
@@ -154,7 +155,7 @@ Every refusal is a bmo-chat refusal code with its English sentence:
 
 | Where | Code | Detail |
 |---|---|---|
-| no token is set, or the account's socket is not standing | `not-ready` | |
+| no token is set | `not-ready` | |
 | a room this provider has not numbered | `platform` | "There is no Discord room {chat}." |
 | a voice whose token or prefix is missing | `platform` | "That account cannot send on Discord: {why}." |
 | an edit, a reaction or a pin of a message this provider has not numbered | `platform` | "Discord has no message {message}." |

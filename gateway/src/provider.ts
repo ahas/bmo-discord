@@ -303,7 +303,13 @@ export const discordProvider: DiscordProvider = {
     sockets = discordAccounts(discord).map((account) => {
       const road: DiscordRoad = { discord, archive: deps.archive, receiver: deps.receiver, account };
 
-      return openGateway(account, (message) => void handleDiscordMessage(road, message));
+      // A message whose handling failed is said and left; a hand-over that did not go is offered again by
+      // the next socket that reads the message, so a failure never takes the process down.
+      return openGateway(account, (message) => {
+        handleDiscordMessage(road, message).catch((error: unknown) => {
+          console.error(`discord: message ${message.messageId} in channel ${message.channelId} failed:`, error);
+        });
+      });
     });
   },
 

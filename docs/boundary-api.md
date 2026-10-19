@@ -141,7 +141,7 @@ This provider's own:
 | `BMO_DISCORD_DATA` | gateway | the provider's own data folder, inside no checkout; it holds the number store. Required |
 | `BMO_DISCORD_AVATAR_PREFIX` | both | the prefix the agent's words carry in the avatar voice, which the deployment writes from the agent's registration; the `human-avatar` mode is inactive while it is unset |
 | `BMO_DISCORD_SENDER_NAME` | gateway | the name the agent's own words are handed over under |
-| `BMO_DISCORD_CLIENT_NAME` | gateway | the client name each socket identifies itself with to Discord |
+| `BMO_DISCORD_CLIENT_NAME` | gateway | the client name the bot account's socket identifies itself with to Discord |
 
 ## Commands
 
