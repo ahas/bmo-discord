@@ -14,11 +14,11 @@ bmo-chat = { path = "../../base/chat/provider" }
 bmo-markup = { path = "../../base/markup" }
 # The service binary's verbs.
 clap = { version = "4.5.40", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
-# The gateway is reached over the loopback, the receiver wherever its address names.
-reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json"] }
+# The gateway and the served service's own health are reached over the loopback, with no TLS; the receiver
+# is reached through bmo-chat's link.
+reqwest = { version = "0.13.5", default-features = false, features = ["json"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.138"
-thiserror = "2.0.18"
 tokio = { version = "1.53.2", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 toml = { version = "0.8.23", default-features = false, features = ["parse"] }
 
