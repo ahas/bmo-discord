@@ -32,7 +32,7 @@ protocol and its `openapi.json` state them, under `BMO_DISCORD_ROUTE_TOKEN`:
 | Route | What it answers |
 |---|---|
 | `GET /declaration` | the provider's declaration (`docs/discord.md`, 「The declaration」) |
-| `GET /health` | `ready` once the gateway answers and at least one account's mode is active; the reason while not |
+| `GET /health` | `ready` once the gateway answers ready; the reason while not |
 | `POST /send` | one send of a declared verb, performed by the gateway; any other verb is refused `unsupported-capability` |
 | `POST /media` | refused `unsupported-capability`: the provider declares no `fetchMedia` |
 | `POST /dialect/read` | the `discord-markdown` dialect reading markdown |
@@ -65,10 +65,13 @@ Every hand-over goes through bmo-chat's receiver link to `BMO_DISCORD_RECEIVER_U
 What the provider hands over:
 
 - **A message two accounts both see is handed over once.** Its snowflake is the same on every socket, so the
-  first socket to read it hands it over and the others find it already numbered.
+  first socket to read it hands it over and the others find it already handed over.
 - **The agent's own words come back down the socket** like everybody else's. They are handed over under the
   agent's number in that room, and the receiver keeps them and wakes nobody for them. A send in the avatar
   voice that carried no words of its own is handed over the same way once it is made.
+- **A message the owner's account reads in a room another account answers** is handed over with the mode
+  `human-reader`, whichever socket reads it first, so the receiver takes it as read through a reader and aims
+  no answer at it.
 - **A file is a mark.** A picture is handed over as the picture mark and any other file as the file mark
   naming it (`lang/ko.toml`); no bytes cross and no `attachment` or `gathered` is made.
 - **No room facts cross with a hand-over.** The receiver asks the room routes for what it needs of a room.
@@ -89,7 +92,7 @@ one. A failure is answered with the protocol's error shape.
 
 | Route | Body | Answer |
 |---|---|---|
-| `GET /health` | | `ready` (boolean), `reason` (string or null): whether any account's socket is open, and why not |
+| `GET /health` | | `ready` (boolean), `reason` (string or null): whether at least one account's token is set, and which settings are missing where none is |
 | `POST /gateway/send` | the protocol's send request, of a verb the declaration carries | the protocol's send result: `sent` with `messageId`, or `refused` with a bmo-chat refusal as its code, `label` and fields; the service writes the refusal's sentence |
 | `POST /gateway/room/owns` | `chatId` | `owns` (boolean) |
 | `POST /gateway/room/identity` | `chatId` | `identity` (number or null) |
@@ -103,6 +106,10 @@ one. A failure is answered with the protocol's error shape.
 | Route | Body | Answer |
 |---|---|---|
 | `POST /service/inbound` | `kind` (`message` or `edited`) and the hand-over's body as the protocol states it | `{}` once the service has handed it on; the receiver's failure in the error shape |
+
+The gateway offers a hand-over again only while the service refuses the connection, within the protocol's
+patience window, as the protocol's retry rule states. A hand-over that still does not go is not marked as handed
+over, so the next socket that reads the same message offers it again.
 
 ## Configuration
 
@@ -147,3 +154,6 @@ Statements this provider makes that a sibling's document does not yet match, eac
 
 - **bmo-chat's** `human-avatar` voice says the caller supplies the prefix, but no send field carries one, so
   the provider takes it from `BMO_DISCORD_AVATAR_PREFIX`.
+- **bmo-chat** states no way for two providers that both declare `assigned` numbers to keep their ranges apart.
+  This provider holds its own ranges (`docs/discord.md`, 「Numbering」), clear of KakaoTalk's and of Telegram's
+  native numbers; nothing checks that another provider's range stays clear of them.

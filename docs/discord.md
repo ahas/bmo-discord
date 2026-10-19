@@ -123,9 +123,16 @@ message carrying it is never read as the owner's.
 - **Rooms, people and messages are all numbered by this provider.** A Discord id is a snowflake, a 64-bit
   number written as a string and larger than a JSON number holds exactly, so the platform's ids stay strings
   and the provider's own numbers are what every hand-over and every send carries.
-- **The gateway keeps the numbers** in its store under `BMO_DISCORD_DATA`: a number for each channel, each
-  person and each message it has seen or sent, the voice each room is answered by, and the one person of each
-  DM channel.
+- **The gateway keeps the numbers** in its store, `discord.sqlite` under `BMO_DISCORD_DATA`: a number for each
+  channel, each person and each message it has seen or sent, the messages it has handed over, the voice each
+  room is answered by, and the one person of each DM channel.
+- **The ranges:** room numbers count down from −8,000,000,000,000 and person numbers count up from
+  8,000,000,000,000, each taking one past the furthest the counter has ever reached, so a number once given is
+  never given again. A message number counts up from one within its room, past the highest the room was ever
+  given. These ranges stand clear of KakaoTalk's (rooms below −9,000,000,000,000, people above
+  9,000,000,000,000) and of Telegram's native numbers.
+- **A message is handed over once.** The store marks a message as handed over as it goes to the service, so a
+  second socket reading it finds it there; a hand-over that fails takes the mark off again.
 - **A DM channel is a one-to-one with the agent.** A message with no guild sends the gateway to ask the
   platform for the channel, once a run for each such channel, and a channel whose type is a DM writes down
   its recipient as the person it is with. A group DM, a guild channel and a room answered in the avatar voice

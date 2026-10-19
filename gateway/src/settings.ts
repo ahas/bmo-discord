@@ -66,3 +66,34 @@ export function senderName(): string {
 export function clientName(): string {
   return requiredSetting("BMO_DISCORD_CLIENT_NAME");
 }
+
+// The bearer every route of the service and of the gateway takes.
+export function routeToken(): string {
+  return requiredSetting("BMO_DISCORD_ROUTE_TOKEN");
+}
+
+function port(name: string, otherwise: number): number {
+  const written = setting(name);
+  const read = written === null ? otherwise : Number(written);
+
+  if (!Number.isInteger(read) || read <= 0 || read > 65_535) {
+    throw new Error(`${name} is not a port: ${written}`);
+  }
+
+  return read;
+}
+
+// The loopback port the gateway listens on.
+export function gatewayPort(): number {
+  return port("BMO_DISCORD_GATEWAY_PORT", 3231);
+}
+
+// The loopback port the service listens on, where the gateway hands over what its rooms say.
+export function servicePort(): number {
+  return port("BMO_DISCORD_PORT", 3230);
+}
+
+// The provider's own data folder, which holds the number store.
+export function dataFolder(): string {
+  return requiredSetting("BMO_DISCORD_DATA");
+}

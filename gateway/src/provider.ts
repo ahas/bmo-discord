@@ -206,6 +206,7 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
       ? null
       : await archive.messages().messageIdOf(discordKey, chatId, message.replyToId),
     via: discordKey,
+    mode: account.voice,
   };
 
   // The agent's own words are kept and never routed: a road that answered its own answer would talk to
@@ -240,8 +241,9 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
       archived = read.message;
     }
 
+    // Read beside the account that answers the room, so it goes in as read through a reader.
     if (!await answersAsAvatar(archive, discordKey, chatId)) {
-      await archive.messages().insertMessageIfAbsent(archived);
+      await archive.messages().insertMessageIfAbsent({ ...archived, mode: "human-reader" });
 
       return;
     }
@@ -252,7 +254,7 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
     return;
   }
 
-  const inbound = { ...archived, album: null, via: discordKey, mode: account.voice };
+  const inbound = { ...archived, album: null };
   const context = {
     senderUsername: message.authorName,
     spokenText: message.text,
@@ -468,6 +470,7 @@ export const discordProvider: DiscordProvider = {
         text: wordsSent(spoken),
         replyToMessageId: "replyTo" in request ? (request.replyTo ?? null) : null,
         via: discordKey,
+        mode: voice,
       });
     }
 
