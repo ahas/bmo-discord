@@ -71,7 +71,9 @@ What the provider hands over:
   voice that carried no words of its own is handed over the same way once it is made.
 - **A file is a mark.** A picture is handed over as the picture mark and any other file as the file mark
   naming it (`lang/ko.toml`); no bytes cross and no `attachment` or `gathered` is made.
-- **The room facts** (`kind`, `identity`, `privateTo`) cross with every hand-over.
+- **No room facts cross with a hand-over.** The receiver asks the room routes for what it needs of a room.
+- **The context** carries the author's handle as `senderUsername`, the words the author typed as
+  `spokenText`, Discord's own payload as `metadata`, and `carriesFile` where the message carried a file.
 
 ### Needed from the receiver
 
@@ -88,7 +90,7 @@ one. A failure is answered with the protocol's error shape.
 | Route | Body | Answer |
 |---|---|---|
 | `GET /health` | | `ready` (boolean), `reason` (string or null): whether any account's socket is open, and why not |
-| `POST /gateway/send` | the protocol's send request | the protocol's send result: `sent` with `messageId`, or `refused` with a bmo-chat refusal |
+| `POST /gateway/send` | the protocol's send request, of a verb the declaration carries | the protocol's send result: `sent` with `messageId`, or `refused` with a bmo-chat refusal as its code, `label` and fields; the service writes the refusal's sentence |
 | `POST /gateway/room/owns` | `chatId` | `owns` (boolean) |
 | `POST /gateway/room/identity` | `chatId` | `identity` (number or null) |
 | `POST /gateway/room/is-owner` | `chatId` | `kind` (`owner` or `group`) |

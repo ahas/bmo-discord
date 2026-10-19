@@ -137,7 +137,9 @@ message carrying it is never read as the owner's.
 - **A file is a mark in the record.** A picture is handed over as the picture mark, and any other file as the
   file mark naming it, both from `lang/ko.toml`. The provider declares no `fetchMedia`: a file somebody posted
   cannot be asked for back.
-- **An author Discord gives no name for** is handed over under the unknown-sender name in `lang/ko.toml`.
+- **An author Discord gives no name for** is handed over under the unknown-sender name in `lang/ko.toml`,
+  and an attachment Discord gives no file name for is named by the unnamed-file word there.
+- **A message taken back** leaves the record as it was: a deletion is handed over to nobody.
 
 ## Refusals
 
