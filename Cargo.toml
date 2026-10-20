@@ -5,6 +5,7 @@ name = "bmo-discord"
 description = "The Discord chat provider: the declaration, the discord-markdown dialect and the protocol's routes, with the gateway behind them."
 version = "0.2.0"
 edition = "2024"
+license = "MIT"
 publish = false
 
 [dependencies]

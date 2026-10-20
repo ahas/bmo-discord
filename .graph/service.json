@@ -17,8 +17,8 @@
       "seam/clients",
       "api/provider-routes"
     ],
-    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
-    "changed": 1792498873666
+    "base": "1b45bac56cfec4785674d00435c711496f9da3e6",
+    "changed": 1792511185559
   },
   {
     "id": "service/declaration",
@@ -44,8 +44,8 @@
       "service/dialect",
       "seam/clients"
     ],
-    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
-    "changed": 1792498873658
+    "base": "1b45bac56cfec4785674d00435c711496f9da3e6",
+    "changed": 1792511185564
   },
   {
     "id": "service/dialect",
@@ -61,8 +61,8 @@
     ],
     "aliases": [],
     "needs": [],
-    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
-    "changed": 1792498873635
+    "base": "1b45bac56cfec4785674d00435c711496f9da3e6",
+    "changed": 1792511185568
   },
   {
     "id": "service/routes",
@@ -81,7 +81,7 @@
       "service/declaration",
       "calls/receiver"
     ],
-    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
-    "changed": 1792498873660
+    "base": "1b45bac56cfec4785674d00435c711496f9da3e6",
+    "changed": 1792511185573
   }
 ]

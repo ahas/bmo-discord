@@ -2,6 +2,7 @@
   "name": "discord-gateway",
   "version": "0.2.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "The Discord provider's gateway: the accounts' sockets, the REST calls and the number store, behind the service.",
   "scripts": {
