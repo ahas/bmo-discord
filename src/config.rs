@@ -28,7 +28,7 @@ pub struct Config {
   pub bot_token: bool,
   /// Whether the owner's own user token is set, which the reader and the avatar modes stand on.
   pub user_token: bool,
-  /// Whether the user token of the agent's own account is set, which the `human-as-agent` mode stands on.
+  /// Whether the user token of the agent's own account is set, which the `own-account` mode stands on.
   pub self_token: bool,
   /// Whether the prefix the agent's words carry in the avatar voice is set, which that mode also stands on.
   pub avatar_prefix: bool,

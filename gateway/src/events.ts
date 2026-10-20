@@ -58,6 +58,7 @@ export interface DiscordMessage {
   // socket like everybody else's, and this is how they are told apart.
   authorIsBot: boolean;
   text: string;
+  // Sent at, in epoch milliseconds.
   sentAt: number;
   files: { name: string; contentType: string | null; url: string }[];
 }
@@ -118,7 +119,7 @@ export function parseDispatch(frame: GatewayFrame, now = Date.now()): DiscordMes
       : typeof author?.username === "string" ? author.username : discordWords.unknown_sender,
     authorIsBot: author?.bot === true,
     text: typeof payload.content === "string" ? payload.content : "",
-    sentAt: Number.isNaN(timestamp) ? Math.floor(now / 1000) : Math.floor(timestamp / 1000),
+    sentAt: Number.isNaN(timestamp) ? now : Math.round(timestamp),
     files: attachments.flatMap((attachment) => {
       if (!isRecord(attachment) || typeof attachment.url !== "string") {
         return [];

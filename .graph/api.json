@@ -2,9 +2,11 @@
   {
     "id": "api/provider-routes",
     "title": "Provider routes",
-    "what": "The chat protocol's provider routes bmo-chat serves for this provider, and the inbound route the gateway hands messages and edits to for the receiver, in src/routes.rs; docs/boundary-api.md states them.",
+    "what": "The chat protocol's provider routes bmo-chat serves for this provider, and the hand-over route the gateway hands messages and edits on by, in src/routes.rs; docs/api.md and docs/openapi.json state them.",
     "files": [
       "src/routes.rs",
+      "docs/api.md",
+      "docs/openapi.json",
       "docs/boundary-api.md"
     ],
     "symbols": [
@@ -14,7 +16,7 @@
     "needs": [
       "service/declaration"
     ],
-    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62",
+    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5",
     "boundary": {
       "side": "exposes"
     }

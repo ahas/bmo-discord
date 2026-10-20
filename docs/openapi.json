@@ -1,0 +1,277 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "bmo-discord",
+    "version": "0.2.0",
+    "description": "The Discord chat provider's own API: the loopback seam between its two processes, grouped by the resource each route acts on. The provider routes another unit calls are bmo-chat's, stated in its `docs/protocol.md` and `docs/openapi/provider.json`; this document states only what this repository adds. Every body that is a chat piece is a reference to bmo-chat's OpenAPI documents rather than a copy, so bmo-chat's document is canonical where the two disagree. Bodies are JSON with camelCase keys, times are integers of epoch milliseconds, and every non-2xx answer is the error shape with `code` and `error`."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3230",
+      "description": "the service"
+    },
+    {
+      "url": "http://127.0.0.1:3231",
+      "description": "the gateway"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "x-layer": "downstream",
+  "x-stage": 8,
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The bearer every route takes, read from BMO_DISCORD_ROUTE_TOKEN (docs/boundary-api.md, 「Configuration」)."
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Whether the gateway is ready",
+        "x-call": {
+          "language": "rust",
+          "name": "health",
+          "answer": "ChatHealth"
+        },
+        "responses": {
+          "200": {
+            "description": "Whether the gateway is ready, why not where it is not, and its version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/ChatHealth"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The error shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/WireError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sends": {
+      "post": {
+        "operationId": "send",
+        "summary": "One send into a room",
+        "x-call": {
+          "language": "rust",
+          "name": "send",
+          "request": "ChatSendRequest",
+          "answer": "ChatSent",
+          "refusal": true
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/ChatSendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The send the gateway performed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/ChatSent"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A refusal or a failure, in the error shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/WireError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rooms/{roomId}": {
+      "get": {
+        "operationId": "room",
+        "summary": "One room as the gateway knows it",
+        "x-call": {
+          "language": "rust",
+          "name": "room",
+          "answer": "ProviderRoom",
+          "key": "roomId",
+          "optional": true
+        },
+        "parameters": [
+          {
+            "name": "roomId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The room.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/ProviderRoom"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The number is not one of this provider's rooms.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/WireError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The error shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/WireError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner": {
+      "get": {
+        "operationId": "owner",
+        "summary": "The room to reach the owner in",
+        "x-call": {
+          "language": "rust",
+          "name": "owner",
+          "answer": "ProviderOwner"
+        },
+        "responses": {
+          "200": {
+            "description": "The room to speak into to reach the owner unprompted, or null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/ProviderOwner"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The error shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/WireError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rooms/{roomId}/messages/{messageId}": {
+      "put": {
+        "operationId": "handOver",
+        "summary": "One message handed over to the receiving side",
+        "x-call": {
+          "language": "typescript",
+          "name": "handOver",
+          "request": "HandedMessage",
+          "answer": "HandedMessage"
+        },
+        "parameters": [
+          {
+            "name": "roomId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../../../base/chat/docs/openapi/receiver.json#/components/schemas/HandedMessage"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The receiving side did not hold the message before.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/receiver.json#/components/schemas/HandedMessage"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The receiving side held the message before.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/receiver.json#/components/schemas/HandedMessage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The receiving side's answer, passed on in the error shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/receiver.json#/components/schemas/WireError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

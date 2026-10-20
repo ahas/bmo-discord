@@ -77,13 +77,13 @@ export function discordConfig(env: NodeJS.ProcessEnv = process.env): DiscordConf
 export interface DiscordAccount {
   token: string;
   bot: boolean;
-  voice: Extract<ChatVoice, "bot-account" | "human-as-agent" | "human-avatar">;
+  voice: Extract<ChatVoice, "bot-account" | "own-account" | "human-avatar">;
 }
 
 export function discordAccounts(discord: DiscordConfig): DiscordAccount[] {
   return [
     ...(discord.token === null ? [] : [{ token: discord.token, bot: true, voice: "bot-account" as const }]),
-    ...(discord.selfToken === null ? [] : [{ token: discord.selfToken, bot: false, voice: "human-as-agent" as const }]),
+    ...(discord.selfToken === null ? [] : [{ token: discord.selfToken, bot: false, voice: "own-account" as const }]),
     ...(discord.userToken === null ? [] : [{ token: discord.userToken, bot: false, voice: "human-avatar" as const }]),
   ];
 }
@@ -99,7 +99,7 @@ export function accountFor(discord: DiscordConfig, voice: ChatVoice): DiscordAcc
 // What a voice is missing, in the words a refusal carries.
 export function voiceMissing(voice: ChatVoice): string {
   if (voice === "bot-account") return botTokenMissing;
-  if (voice === "human-as-agent") return selfTokenMissing;
+  if (voice === "own-account") return selfTokenMissing;
 
   return userTokenMissing;
 }

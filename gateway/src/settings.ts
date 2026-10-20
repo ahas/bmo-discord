@@ -6,9 +6,15 @@
 import policyFile from "../../policy/discord.toml";
 import wordsFile from "../../lang/ko.toml";
 
+export interface NumberRange {
+  first: number;
+  last: number;
+}
+
 export interface DiscordPolicy {
   can: string[];
   unpinned: string[];
+  numbering: { rooms: NumberRange; people: NumberRange };
 }
 
 export interface DiscordWords {

@@ -1,76 +1,61 @@
 // The chat protocol's pieces as the gateway speaks them to the service: bmo-chat's wire shapes (its
-// `docs/contract.md`), written out for the calls the gateway makes and answers, and the gateway's own provider
-// shape the seam's routes ask. Numbers are the provider's own; Discord's snowflakes never cross.
+// `docs/contract.md` and `docs/protocol.md`), written out for what the seam carries. Numbers are the provider's
+// own; Discord's snowflakes never cross. Times are epoch milliseconds.
 
-export type ChatVoice = "bot-account" | "human-reader" | "human-avatar" | "human-as-agent" | "direct";
+export type ChatVoice = "bot-account" | "human-reader" | "human-avatar" | "own-account" | "direct";
 
-export type ChatVerb =
-  | "text"
-  | "photo"
-  | "album"
-  | "document"
-  | "audio"
-  | "voice"
-  | "sticker"
-  | "reaction"
-  | "pin"
-  | "typing"
-  | "edit"
-  | "delete";
-
-export type ChatCapability = ChatVerb | "replyTo" | "fetchMedia" | "avatars" | "history";
+export type MessageOrigin = "live" | "edit" | "history";
 
 export type RoomKind = "owner" | "group";
 
-// What every send carries beside its verb.
-interface SendCommon {
-  chatId: number;
-  as?: ChatVoice | null;
-  speaker?: { agent: string } | null;
+export type ChatFileKind =
+  | "photo"
+  | "video"
+  | "round-video"
+  | "animation"
+  | "audio"
+  | "voice-note"
+  | "sticker"
+  | "document";
+
+// What every send carries beside its kind.
+export interface SendCommon {
+  roomId: number;
+  mode?: ChatVoice | null;
+  speaker?: string | null;
   tag?: string | null;
+  prefix?: string | null;
+  replyToMessageId?: number | null;
 }
 
 export type AlbumItem = { address: string } | { name: string; mime: string; bytes: string };
 
-// One send into one room. Bytes are base64, as the wire carries them.
+// One send into one room, as `POST /sends` takes it. Bytes are base64, as the wire carries them.
 export type ChatSendRequest = SendCommon & (
-  | { verb: "text"; text: string; replyTo?: number | null; silent?: boolean; fold?: boolean }
-  | { verb: "photo"; imageUrl: string; caption?: string | null; replyTo?: number | null }
-  | { verb: "album"; items: AlbumItem[]; caption?: string | null; replyTo?: number | null }
-  | { verb: "document"; bytes: string; fileName: string; replyTo?: number | null }
-  | { verb: "audio"; audio: string; fileName: string; replyTo?: number | null }
-  | { verb: "voice"; audio: string; said: string; transcript?: string | null; caption?: string | null; replyTo?: number | null }
-  | { verb: "sticker"; emoji: string }
-  | { verb: "reaction"; messageId: number; emoji: string }
-  | { verb: "pin"; messageId: number; on: boolean; silent?: boolean }
-  | { verb: "typing"; on: boolean }
-  | { verb: "edit"; messageId: number; text: string }
-  | { verb: "delete"; messageId: number }
+  | { kind: "text"; fields: { text: string; silent?: boolean; fold?: boolean } }
+  | { kind: "photo"; fields: { imageUrl: string; caption?: string | null } }
+  | { kind: "album"; fields: { items: AlbumItem[]; caption?: string | null } }
+  | { kind: "document"; fields: { bytes: string; fileName: string } }
+  | { kind: "audio"; fields: { audio: string; fileName: string } }
+  | { kind: "voice"; fields: { audio: string; said: string; caption?: string | null; transcript?: string | null } }
+  | { kind: "sticker"; fields: { emoji: string } }
+  | { kind: "reaction"; fields: { messageId: number; emoji: string } }
+  | { kind: "pin"; fields: { messageId: number; on: boolean; silent?: boolean } }
+  | { kind: "typing"; fields: { on: boolean } }
+  | { kind: "edit"; fields: { messageId: number; text: string } }
+  | { kind: "delete"; fields: { messageId: number } }
 );
 
-// Why a send was not performed, as its code, the provider's label and the code's fields. The English sentence
-// is written by the service, from these.
-export type ChatRefusal =
-  | { code: "unsupported-capability"; label: string; capability: ChatCapability }
-  | { code: "not-ready"; label: string }
-  | { code: "platform"; label: string; detail: string };
+// A picture of an album that did not go, with why.
+export interface MissedPicture {
+  address: string;
+  reason: { code: string; message: string; detail?: string };
+}
 
-export type ChatSendResult =
-  | { sent: true; messageId: number | null }
-  | { sent: false; refusal: ChatRefusal; gone: boolean };
-
-// A message a room said, as it crosses to the receiver.
-export interface ChatMessage {
-  chatId: number;
-  messageId: number;
-  senderId: number | null;
-  senderName: string;
-  sentAt: number;
-  text: string;
-  replyToMessageId: number | null;
-  via: string;
-  album: number | null;
-  mode: ChatVoice;
+// A send the provider performed: the answer of `POST /sends`.
+export interface ChatSent {
+  messageId: number | null;
+  missed: MissedPicture[];
 }
 
 // What the platform said about a message beyond the message itself.
@@ -81,25 +66,85 @@ export interface InboundChatContext {
   spokenText?: string | null;
   metadata?: unknown;
   carriesFile?: boolean;
-  gathering?: boolean;
   tag?: string | null;
 }
 
-// The receiver as the gateway hands it what its rooms say: through the service's inbound route.
-export interface ChatReceiver {
-  message(message: ChatMessage, context: InboundChatContext): Promise<void>;
-  edited(message: ChatMessage, context: InboundChatContext): Promise<void>;
+// What the provider already knows of the room a hand-over came from.
+export interface RoomFacts {
+  kind?: RoomKind | null;
+  identity?: number | null;
+  privateTo?: number | null;
 }
 
-// A send of a verb this provider does not carry.
-export function verbRefusal(label: string, verb: ChatVerb): ChatRefusal {
-  return { code: "unsupported-capability", label, capability: verb };
+// A file a message carried, where it is already gathered.
+export interface MessageFile {
+  id: string;
+  name: string;
+  mime: string;
+  bytes: string;
+  kind?: ChatFileKind | null;
 }
 
-export function notReady(label: string): ChatRefusal {
-  return { code: "not-ready", label };
+// A message as a provider hands it over, under the room and message number the route's path names.
+export interface HandedMessage {
+  origin: MessageOrigin;
+  senderId: number | null;
+  senderName: string;
+  sentAt: number;
+  text: string;
+  replyToMessageId: number | null;
+  via: string;
+  album: number | null;
+  mode: ChatVoice;
+  context: InboundChatContext;
+  room: RoomFacts;
+  files: MessageFile[];
+  gathering: boolean;
+  gatherFailure?: string | null;
 }
 
-export function platformRefusal(label: string, detail: string): ChatRefusal {
-  return { code: "platform", label, detail };
+// A room as a provider knows it, and the room to reach the owner in.
+export interface ProviderRoom {
+  id: number;
+  owns: boolean;
+  identity: number | null;
+  kind: RoomKind;
+  privateTo: number | null;
+  title: string | null;
+}
+
+export interface ProviderOwner {
+  roomId: number | null;
+}
+
+export interface ChatHealth {
+  ready: boolean;
+  reason: string | null;
+  version: string;
+}
+
+// The error shape: a code to match on and an English sentence.
+export interface WireError {
+  code: string;
+  error: string;
+}
+
+// A send the gateway does not perform, answered as the error shape with this code and sentence. The service
+// puts the provider's label before the sentence where the code is `platform`.
+export class Refusal extends Error {
+  constructor(
+    readonly code: "platform" | "not-ready" | "unsupported-capability" | "gone",
+    readonly detail: string,
+    readonly status: number,
+  ) {
+    super(detail);
+  }
+}
+
+export function platformRefusal(detail: string): Refusal {
+  return new Refusal("platform", detail, 422);
+}
+
+export function notReady(): Refusal {
+  return new Refusal("not-ready", "The gateway is not ready yet.", 503);
 }

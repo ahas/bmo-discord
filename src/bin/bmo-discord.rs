@@ -9,9 +9,9 @@ use clap::{Parser, Subcommand};
 
 use bmo_chat::{ChatHealth, ChatProvider, ChatReceiver, ChatReceiverLink};
 use bmo_discord::config::Config;
-use bmo_discord::gateway::Gateway;
 use bmo_discord::provider::DiscordProvider;
 use bmo_discord::routes::service;
+use bmo_discord::seam::Gateway;
 
 #[derive(Parser)]
 #[command(

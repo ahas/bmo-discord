@@ -15,10 +15,11 @@ declares, and hands what its rooms say to the receiver.
 
 | Folder | Holds |
 |---|---|
-| `src/` | the service's own package: the declaration, the `discord-markdown` dialect, the protocol's routes, the receiver link and the client of the gateway |
-| `gateway/` | the gateway, a bun package holding the Discord accounts' sockets, the REST calls and the provider's number store |
-| `policy/` | the provider's fixed values: its capabilities, the voices whose answers go out unpinned, and its dialect's limit and writing sentence |
+| `src/` | the service's own package: the declaration, the `discord-markdown` dialect, the protocol's routes, the receiver link and the generated client of the gateway (`seam.rs`) |
+| `gateway/` | the gateway, a bun package holding the Discord accounts' sockets, the REST calls, the provider's number store and the generated client of the service (`seam.ts`) |
+| `policy/` | the provider's fixed values: its capabilities, the voices whose answers go out unpinned, the ranges its numbers fall in, and its dialect's limit and writing sentence |
 | `lang/` | the words a person reads that this provider draws: the platform's label and the marks a message is handed over with |
+| `tools/` | `generate.ts`, which writes both clients from `docs/openapi.json` |
 | `deploy/` | the two service units a deployment links: the Rust service and the bun gateway |
 | `docs/` | the canonical statements of what the provider does |
 | `.graph/` | this repository's code graph, written only by `bmo-graph` |
@@ -32,7 +33,9 @@ values), `rustfmt.toml` and `CLAUDE.md`.
 
 | Document | States |
 |---|---|
-| `docs/boundary-api.md` | The boundary: the routes served, the calls made on the receiver, the seam between the service and the gateway, the configuration |
+| `docs/api.md` | The provider's fixed API: the wire format, the resources, the routes and the codes |
+| `docs/openapi.json` | The same API in OpenAPI 3.1, from which both clients are generated |
+| `docs/boundary-api.md` | The boundary: the routes served, the calls made on the receiving side, the seam between the service and the gateway, the configuration and the clients |
 | `docs/discord.md` | The provider: its declaration, the sockets, which account answers a room, the avatar voice, the verbs, the dialect, the numbering and the refusals |
 
 ## Version
@@ -40,7 +43,8 @@ values), `rustfmt.toml` and `CLAUDE.md`.
 - **One version for the whole repository,** in semver. `VERSION` holds it, the package's version equals it,
   and the gateway's `package.json` carries it.
 - **A major change is a change to a contract a consumer reads;** an addition no existing consumer reads is a
-  minor change, anything else a patch.
+  minor change, anything else a patch. The version is 0.2.0: the provider routes moved to bmo-chat's fixed
+  protocol, which every caller of this provider reads.
 
 ## Build check
 
@@ -58,4 +62,10 @@ The gateway's types are checked in `gateway/`:
 ```sh
 bun install
 ./node_modules/.bin/tsc --noEmit
+```
+
+The two seam clients are generated from `docs/openapi.json`; after changing that document, write them again:
+
+```sh
+bun tools/generate.ts
 ```

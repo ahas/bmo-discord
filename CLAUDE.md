@@ -21,10 +21,11 @@ loopback, holds the Discord accounts' sockets, makes every REST call and keeps t
 
 - **`docs/` is canonical.** Read the document covering a change before changing code. A change that would
   make it wrong or incomplete repairs it first, stating what is true now, and the code is then written to
-  match. `docs/boundary-api.md` states every route this provider serves, every call it makes on another unit,
-  the seam between its two processes and the configuration it reads; `docs/discord.md` states what the
-  provider is and does.
-- **No `bmo-*` dependency but the base libraries** `bmo-chat`, `bmo-chat-client`, `bmo-ui` and `bmo-markup`.
+  match. `docs/api.md` is the provider's fixed API and `docs/openapi.json` the same API in machine form, from
+  which both seam clients are generated; `docs/boundary-api.md` states every route this provider serves, every
+  call it makes on another unit, the seam between its two processes and the configuration it reads;
+  `docs/discord.md` states what the provider is and does.
+- **No `bmo-*` dependency but the base libraries** `bmo-chat`, `bmo-chat-client`, `bmo-ui` and `bmo-text`.
   Another unit is reached over HTTP, as the boundary states. The gateway depends on no `@bmo/` package.
 - **The provider declares what it is.** Its modes, capabilities and dialect are its own declaration, in
   `policy/discord.toml` and the service; nothing here names the receiver's internals or another provider, and

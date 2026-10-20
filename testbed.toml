@@ -11,7 +11,7 @@ setup = ["cd gateway && bun install --frozen-lockfile"]
 
 [check]
 quick = ["layout", "dependencies", "korean"]
-base_libraries = ["bmo-chat", "bmo-chat-client", "bmo-ui", "bmo-markup"]
+base_libraries = ["bmo-chat", "bmo-chat-client", "bmo-ui", "bmo-text"]
 # No code file is allowed a Korean line. The words a person reads stand in `lang/ko.toml`, which is not code.
 korean_ledger = "korean-ledger.json"
 
@@ -33,7 +33,7 @@ command = "cargo fmt --check"
 id = "gateway-types"
 command = "./node_modules/.bin/tsc --noEmit"
 dir = "gateway"
-when = ["gateway/**", "policy/**", "lang/**"]
+when = ["gateway/**", "policy/**", "lang/**", "docs/openapi.json"]
 
 [build]
 # The service's binary; the gateway is a bun package run from the release's gateway/, which the setup steps

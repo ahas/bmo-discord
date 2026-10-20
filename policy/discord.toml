@@ -5,6 +5,16 @@
 can = ["text", "replyTo", "photo", "document", "sticker", "reaction", "pin", "typing", "edit"]
 unpinned = ["human-reader"]
 
+# The ranges this provider assigns numbers in, both ends included, held clear of the ranges other chat
+# providers declare. Rooms count down from `last`; people count up from `first`.
+[numbering.rooms]
+first = -8999999999999
+last = -8000000000000
+
+[numbering.people]
+first = 8000000000000
+last = 8999999999999
+
 # The `discord-markdown` dialect: the longest one message and one caption hold, in characters (a longer answer
 # goes out as consecutive messages, cut at its own markdown's seams), the most embeds one message carries, the
 # largest file a guild with no boost takes, and what a writer in such a room is told its marks become.

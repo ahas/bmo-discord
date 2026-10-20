@@ -3,7 +3,7 @@
 [package]
 name = "bmo-discord"
 description = "The Discord chat provider: the declaration, the discord-markdown dialect and the protocol's routes, with the gateway behind them."
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 publish = false
 
@@ -11,7 +11,7 @@ publish = false
 async-trait = "0.1.92"
 axum = { version = "0.8.4", default-features = false, features = ["http1", "json", "tokio"] }
 bmo-chat = { path = "../../base/chat/provider" }
-bmo-markup = { path = "../../base/markup" }
+bmo-text = { path = "../../base/text", default-features = false }
 # The service binary's verbs.
 clap = { version = "4.5.40", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 # The gateway and the served service's own health are reached over the loopback, with no TLS; the receiver

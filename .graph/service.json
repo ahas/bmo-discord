@@ -15,12 +15,12 @@
       "api/provider-routes",
       "service/declaration"
     ],
-    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
   },
   {
     "id": "service/declaration",
     "title": "Provider declaration",
-    "what": "The Discord provider as bmo-chat serves it: key, label, the four modes on their settings, the capabilities, numbering and health, every room question and send forwarded to the gateway, in src/provider.rs.",
+    "what": "The Discord provider as bmo-chat serves it: key, label, version, the four modes on their settings, the capabilities, numbering with its ranges, health, every room question and send forwarded to the gateway, in src/provider.rs.",
     "files": [
       "src/provider.rs",
       "src/config.rs",
@@ -40,12 +40,12 @@
       "service/dialect",
       "service/gateway-client"
     ],
-    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
   },
   {
     "id": "service/dialect",
     "title": "Discord markdown dialect",
-    "what": "The discord-markdown dialect: marks go out as written, a long answer divided at two thousand characters by bmo-markup, no fold and no fault, in src/dialect.rs.",
+    "what": "The discord-markdown dialect: marks go out as written, a long answer divided at two thousand characters by bmo-text, no fold and no fault, in src/dialect.rs.",
     "files": [
       "src/dialect.rs",
       "policy/discord.toml",
@@ -56,23 +56,25 @@
     ],
     "aliases": [],
     "needs": [],
-    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
   },
   {
     "id": "service/gateway-client",
     "title": "Gateway client",
-    "what": "The service's one module calling the gateway over the loopback: its health, a send, the room questions and the owner's room, in src/gateway.rs.",
+    "what": "The service's generated client of the gateway, written from docs/openapi.json by tools/generate.ts: its health, a send, a room and the owner's room, in src/seam.rs.",
     "files": [
-      "src/gateway.rs",
-      "docs/boundary-api.md"
+      "src/seam.rs",
+      "docs/openapi.json",
+      "tools/generate.ts"
     ],
     "symbols": [
-      "Gateway"
+      "Gateway",
+      "GatewayFailure"
     ],
     "aliases": [],
     "needs": [
       "gateway/seam-server"
     ],
-    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
+    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
   }
 ]

@@ -7,6 +7,20 @@ use std::sync::LazyLock;
 use bmo_chat::{ChatCapability, ChatVoice};
 use serde::Deserialize;
 
+/// One end of a range this provider assigns numbers in, both ends included.
+#[derive(Deserialize)]
+pub struct NumberRange {
+  pub first: i64,
+  pub last: i64,
+}
+
+/// The ranges of the spaces this provider assigns numbers in.
+#[derive(Deserialize)]
+pub struct NumberingPolicy {
+  pub rooms: NumberRange,
+  pub people: NumberRange,
+}
+
 /// The `discord-markdown` dialect's values.
 #[derive(Deserialize)]
 pub struct DialectPolicy {
@@ -28,6 +42,7 @@ pub struct Policy {
   pub can: BTreeSet<ChatCapability>,
   /// The voices whose answers go out unpinned.
   pub unpinned: Vec<ChatVoice>,
+  pub numbering: NumberingPolicy,
   pub dialect: DialectPolicy,
 }
 

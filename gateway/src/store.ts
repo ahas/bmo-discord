@@ -8,29 +8,25 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import type { ChatMessage, ChatVoice } from "./chat";
+import { discordPolicy } from "./settings";
 
-// A message as the store keeps it and as it is handed over, less what only a hand-over carries.
-export interface ArchivedMessage {
+import type { HandedMessage } from "./chat";
+
+// A message as the store keeps it: the room and message numbers it is numbered by, and the hand-over it
+// makes to the receiver.
+export interface KeptMessage {
   chatId: number;
   messageId: number;
-  senderId: number | null;
-  senderName: string;
-  sentAt: number;
-  text: string;
-  replyToMessageId: number | null;
-  via: string;
-  // The mode that delivered it.
-  mode: ChatVoice;
+  message: HandedMessage;
 }
 
 // Hands one kept message to the receiver, through the service.
-export type HandOver = (message: ChatMessage) => Promise<void>;
+export type HandOver = (kept: KeptMessage) => Promise<void>;
 
-// Where the ranges start: rooms count down from the first and people up from the second, clear of the ranges
-// other providers hold.
-const firstRoom = -8_000_000_000_000;
-const firstPerson = 8_000_000_000_000;
+// Where the ranges start: rooms count down from the range's last number and people up from its first, clear
+// of the ranges other providers declare (policy/discord.toml).
+const roomStart = discordPolicy.numbering.rooms.last;
+const personStart = discordPolicy.numbering.people.first;
 
 const schema = `
   CREATE TABLE IF NOT EXISTS rooms (
@@ -119,7 +115,7 @@ export class Store {
           }
 
           const lowest = this.counter("room");
-          const chatId = lowest === null ? firstRoom : lowest - 1;
+          const chatId = lowest === null ? roomStart : lowest - 1;
 
           db.query("INSERT INTO rooms (room_id, chat_id, title) VALUES ($roomId, $chatId, $title)").run({ roomId, chatId, title });
           this.setCounter("room", chatId);
@@ -154,7 +150,7 @@ export class Store {
           }
 
           const highest = this.counter("person");
-          const senderId = highest === null ? firstPerson : highest + 1;
+          const senderId = highest === null ? personStart : highest + 1;
 
           db.query("INSERT INTO people (user_id, sender_id) VALUES ($userId, $senderId)").run({ userId, senderId });
           this.setCounter("person", senderId);
@@ -175,13 +171,13 @@ export class Store {
     };
 
     // Marks a message as handed over; false where it already was.
-    const markHandedOver = (message: Pick<ArchivedMessage, "chatId" | "messageId" | "senderId">): boolean =>
+    const markHandedOver = (kept: Pick<KeptMessage, "chatId" | "messageId" | "message">): boolean =>
       db.query("INSERT INTO handed_over (chat_id, message_id, sender_id) VALUES ($chatId, $messageId, $senderId) ON CONFLICT DO NOTHING")
-        .run({ chatId: message.chatId, messageId: message.messageId, senderId: message.senderId }).changes > 0;
+        .run({ chatId: kept.chatId, messageId: kept.messageId, senderId: kept.message.senderId }).changes > 0;
 
-    const unmarkHandedOver = (message: Pick<ArchivedMessage, "chatId" | "messageId">): void => {
+    const unmarkHandedOver = (kept: Pick<KeptMessage, "chatId" | "messageId">): void => {
       db.query("DELETE FROM handed_over WHERE chat_id = $chatId AND message_id = $messageId")
-        .run({ chatId: message.chatId, messageId: message.messageId });
+        .run({ chatId: kept.chatId, messageId: kept.messageId });
     };
 
     return {
@@ -232,15 +228,15 @@ export class Store {
       // A message kept of the store's own accord — the agent's own words read back, a send in the avatar
       // voice, words read beside the account that answers the room — handed over once, where it was not
       // already. Returns whether it was handed over now.
-      insertMessageIfAbsent: async (message: ArchivedMessage): Promise<boolean> => {
-        if (!markHandedOver(message)) {
+      insertMessageIfAbsent: async (kept: KeptMessage): Promise<boolean> => {
+        if (!markHandedOver(kept)) {
           return false;
         }
 
         try {
-          await this.handOver({ ...message, album: null });
+          await this.handOver(kept);
         } catch (error) {
-          unmarkHandedOver(message);
+          unmarkHandedOver(kept);
           throw error;
         }
 

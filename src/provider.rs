@@ -7,16 +7,16 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bmo_chat::{
-  ChatCapability, ChatDialect, ChatFailure, ChatHealth, ChatModeStanding, ChatNumberSpace, ChatNumbering,
-  ChatProvider, ChatReach, ChatReadMode, ChatReceiver, ChatSendRequest, ChatSendResult, ChatVoice,
-  RoomKind,
+  ChatCapability, ChatDialect, ChatFailure, ChatHealth, ChatModeStanding, ChatNumberRange,
+  ChatNumberRanges, ChatNumberSpace, ChatNumbering, ChatProvider, ChatReach, ChatReadMode, ChatReceiver,
+  ChatRefusal, ChatSend, ChatSendRequest, ChatSendResult, ChatVoice, ErrorCode, ProviderRoom, WireError,
 };
 use tokio::task::JoinHandle;
 
 use crate::config::Config;
 use crate::dialect::DiscordMarkdown;
-use crate::gateway::Gateway;
 use crate::policy::{POLICY, WORDS};
+use crate::seam::{Gateway, GatewayFailure};
 
 pub const KEY: &str = "discord";
 
@@ -45,7 +45,10 @@ impl DiscordProvider {
       config,
       dialect: DiscordMarkdown::new(),
       gateway,
-      gateway_health: Arc::new(RwLock::new(ChatHealth::not_ready("the gateway has not answered yet"))),
+      gateway_health: Arc::new(RwLock::new(ChatHealth::not_ready(
+        env!("CARGO_PKG_VERSION"),
+        "the gateway has not answered yet",
+      ))),
       watching: Mutex::new(None),
     }
   }
@@ -61,6 +64,96 @@ impl DiscordProvider {
       can_reply_to: !POLICY.unpinned.contains(&voice),
     }
   }
+
+  /// A send with the words its kind carries read through this provider's dialect. Discord's dialect leaves
+  /// markdown as written, so this holds the dialect's place rather than changing a word.
+  fn spoken(&self, request: ChatSendRequest) -> ChatSendRequest {
+    let ChatSendRequest {
+      room_id,
+      send,
+      mode,
+      speaker,
+      tag,
+      prefix,
+      reply_to_message_id,
+    } = request;
+    let caption = |words: Option<String>| words.map(|words| self.dialect.convert(&words).markup);
+    let send = match send {
+      ChatSend::Text { text, silent, fold } => ChatSend::Text {
+        text: self.dialect.outgoing(&text, fold),
+        silent,
+        fold,
+      },
+      ChatSend::Photo {
+        image_url,
+        caption: words,
+      } => ChatSend::Photo {
+        image_url,
+        caption: caption(words),
+      },
+      ChatSend::Album {
+        items,
+        caption: words,
+      } => ChatSend::Album {
+        items,
+        caption: caption(words),
+      },
+      ChatSend::Voice {
+        audio,
+        said,
+        caption: words,
+        transcript,
+      } => ChatSend::Voice {
+        audio,
+        said,
+        caption: caption(words),
+        transcript,
+      },
+      ChatSend::Edit { message_id, text } => ChatSend::Edit {
+        message_id,
+        text: self.dialect.convert(&text).markup,
+      },
+      other => other,
+    };
+
+    ChatSendRequest {
+      room_id,
+      send,
+      mode,
+      speaker,
+      tag,
+      prefix,
+      reply_to_message_id,
+    }
+  }
+
+  /// The refusal the service answers with, from the error shape the gateway answered with. A send this
+  /// provider does not perform was refused before the gateway was asked, so a gateway answer here is the
+  /// platform's own refusal; any other answer is a failure of the call, not a refusal.
+  fn refusal(
+    &self,
+    status: u16,
+    capability: ChatCapability,
+    answer: &[u8],
+  ) -> Result<ChatRefusal, ChatFailure> {
+    let label = self.label().to_owned();
+    let WireError { code, error } = serde_json::from_slice(answer)
+      .map_err(|_| format!("the gateway answered {status} in a shape this service does not read."))?;
+
+    match code {
+      ErrorCode::NotReady => Ok(ChatRefusal::NotReady { label }),
+      ErrorCode::Gone => Ok(ChatRefusal::Gone {
+        label,
+        detail: error,
+      }),
+      ErrorCode::UnsupportedCapability => Ok(ChatRefusal::UnsupportedCapability { label, capability }),
+      ErrorCode::Platform => Ok(ChatRefusal::Platform {
+        label,
+        detail: error,
+      }),
+      _ => Err(format!("the gateway answered {status}: {error}").into()),
+    }
+  }
 }
 
 #[async_trait]
@@ -73,6 +166,10 @@ impl ChatProvider for DiscordProvider {
     &WORDS.label
   }
 
+  fn version(&self) -> &str {
+    env!("CARGO_PKG_VERSION")
+  }
+
   fn configured(&self) -> Option<String> {
     let any = self.config.bot_token || self.config.user_token || self.config.self_token;
 
@@ -83,12 +180,16 @@ impl ChatProvider for DiscordProvider {
   async fn start(&self, _receiver: Arc<dyn ChatReceiver>) -> Result<(), ChatFailure> {
     let gateway = self.gateway.clone();
     let health = self.gateway_health.clone();
+    let version = self.version().to_owned();
     let watching = tokio::spawn(async move {
       loop {
-        let answer = gateway
-          .health()
-          .await
-          .unwrap_or_else(|why| ChatHealth::not_ready(format!("the gateway does not answer: {why}")));
+        let answer = gateway.health().await.map_or_else(
+          |why| ChatHealth::not_ready(version.clone(), format!("the gateway does not answer: {why}")),
+          |answer| ChatHealth {
+            version: version.clone(),
+            ..answer
+          },
+        );
 
         if let Ok(mut held) = health.write() {
           *held = answer;
@@ -116,13 +217,16 @@ impl ChatProvider for DiscordProvider {
   /// Ready once the gateway says it is ready.
   fn health(&self) -> ChatHealth {
     if let Some(reason) = self.configured() {
-      return ChatHealth::not_ready(reason);
+      return ChatHealth::not_ready(self.version(), reason);
     }
 
-    self
-      .gateway_health
-      .read()
-      .map_or_else(|_| ChatHealth::not_ready("the gateway's health could not be read"), |held| held.clone())
+    self.gateway_health.read().map_or_else(
+      |_| ChatHealth::not_ready(self.version(), "the gateway's health could not be read"),
+      |held| ChatHealth {
+        version: self.version().to_owned(),
+        ..held.clone()
+      },
+    )
   }
 
   /// Each mode stands on its own setting, read as the service starts.
@@ -142,7 +246,7 @@ impl ChatProvider for DiscordProvider {
       // The same account answering, behind the prefix, where no other account of this provider is.
       Self::mode(ChatVoice::HumanAvatar, avatar),
       // An account made for the agent, answering as the agent with no prefix.
-      Self::mode(ChatVoice::HumanAsAgent, (!config.self_token).then_some(SELF_TOKEN_MISSING)),
+      Self::mode(ChatVoice::OwnAccount, (!config.self_token).then_some(SELF_TOKEN_MISSING)),
     ]
   }
 
@@ -159,34 +263,46 @@ impl ChatProvider for DiscordProvider {
       rooms: ChatNumberSpace::Assigned,
       people: ChatNumberSpace::Assigned,
       messages: ChatNumberSpace::Assigned,
+      ranges: ChatNumberRanges {
+        rooms: Some(ChatNumberRange {
+          first: POLICY.numbering.rooms.first,
+          last: POLICY.numbering.rooms.last,
+        }),
+        people: Some(ChatNumberRange {
+          first: POLICY.numbering.people.first,
+          last: POLICY.numbering.people.last,
+        }),
+      },
     }
   }
 
-  async fn owns_room(&self, chat_id: i64) -> Result<bool, ChatFailure> {
-    self.gateway.owns(chat_id).await
-  }
-
-  async fn identity_of(&self, chat_id: i64) -> Result<Option<i64>, ChatFailure> {
-    self.gateway.identity(chat_id).await
-  }
-
-  async fn is_owner_room(&self, chat_id: i64) -> Result<RoomKind, ChatFailure> {
-    self.gateway.is_owner(chat_id).await
-  }
-
-  async fn private_room_of(&self, chat_id: i64) -> Result<Option<i64>, ChatFailure> {
-    self.gateway.private_of(chat_id).await
+  async fn room(&self, room_id: i64) -> Result<Option<ProviderRoom>, ChatFailure> {
+    match self.gateway.room(room_id).await {
+      Ok(room) => Ok(Some(room)),
+      Err(GatewayFailure::Answered { status: 404, .. }) => Ok(None),
+      Err(failure) => Err(failure.into()),
+    }
   }
 
   async fn owner_room(&self) -> Result<Option<i64>, ChatFailure> {
-    self.gateway.owner_room().await
-  }
+    let answer = self.gateway.owner().await?;
 
-  async fn room_title(&self, chat_id: i64) -> Result<Option<String>, ChatFailure> {
-    self.gateway.title(chat_id).await
+    Ok(answer.room_id)
   }
 
   async fn send(&self, request: ChatSendRequest) -> Result<ChatSendResult, ChatFailure> {
-    self.gateway.send(&request).await
+    let capability: ChatCapability = request.send.kind().into();
+
+    if let Some(refusal) = self.undeclared(capability) {
+      return Ok(ChatSendResult::Refused(refusal));
+    }
+
+    match self.gateway.send(&self.spoken(request)).await {
+      Ok(sent) => Ok(ChatSendResult::Sent(sent)),
+      Err(GatewayFailure::Answered { status, body }) => {
+        Ok(ChatSendResult::Refused(self.refusal(status, capability, &body)?))
+      }
+      Err(failure) => Err(failure.into()),
+    }
   }
 }

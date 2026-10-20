@@ -2,7 +2,8 @@
 
 This document is the boundary of `bmo-discord`: every route it serves, every call it makes on another unit,
 the seam between its two processes, and the configuration it reads. A unit reaches this provider only across
-it, and the provider reaches another unit only by the calls below.
+it, and the provider reaches another unit only by the calls below. `docs/api.md` is the fixed form of the API
+stated here, and `docs/openapi.json` is that API in machine form.
 
 The provider is two processes of one repository:
 
@@ -15,10 +16,10 @@ The provider is two processes of one repository:
 
 ```mermaid
 flowchart LR
-  Rx[the receiver] -->|provider routes| S[service]
-  S -->|message, edited| Rx
-  S -->|seam: send, room questions, health| G[gateway]
-  G -->|seam: inbound| S
+  Rx[the receiving side] -->|provider routes| S[service]
+  S -->|PUT rooms messages| Rx
+  S -->|seam: health, sends, rooms, owner| G[gateway]
+  G -->|seam: message hand-over| S
   G -->|gateway sockets, REST| DC[Discord]
 ```
 
@@ -27,60 +28,46 @@ flowchart LR
 ### The chat protocol's provider routes
 
 Every provider route of bmo-chat's `docs/protocol.md`, served by bmo-chat's provider server exactly as the
-protocol and its `openapi.json` state them, under `BMO_DISCORD_ROUTE_TOKEN`:
+protocol and its `docs/openapi/provider.json` state them, under `BMO_DISCORD_ROUTE_TOKEN`. This repository
+adds no public route beside them.
 
-| Route | What it answers |
-|---|---|
-| `GET /declaration` | the provider's declaration (`docs/discord.md`, 「The declaration」) |
-| `GET /health` | `ready` once the gateway answers ready; the reason while not |
-| `POST /send` | one send of a declared verb, performed by the gateway; any other verb is refused `unsupported-capability` |
-| `POST /media` | refused `unsupported-capability`: the provider declares no `fetchMedia` |
-| `POST /dialect/read` | the `discord-markdown` dialect reading markdown |
-| `POST /dialect/check` | the `discord-markdown` dialect checking markup it built; it never faults |
-| `POST /room/owns` | whether the room is one the provider has numbered |
-| `POST /room/identity` | the agent's number in the room: the number of the account that answers it, or the avatar voice's own number where the room is answered in that voice |
-| `POST /room/is-owner` | `owner` for the owner's one-to-one with the agent, `group` otherwise, and never `owner` for a room answered in the avatar voice |
-| `POST /room/private-of` | the one person of a DM channel, as the platform said it; null for a group DM, a guild channel and a room answered in the avatar voice |
-| `POST /room/title` | the channel's name as Discord gives it, or null |
-| `GET /owner-room` | the room numbered for `BMO_DISCORD_OWNER_CHANNEL`, or null where it is unset or not yet numbered |
+### This repository's own route
 
-Wire conventions, auth, the error shape and the retry rule are the protocol's.
+| Route | Body | Answer |
+|---|---|---|
+| `PUT /rooms/{roomId}/messages/{messageId}` | a `HandedMessage` as bmo-chat's `docs/contract.md` states it | 201 where the receiving side did not hold the message before and 200 where it did, with the message as held; the receiving side's own error shape where it could not take it |
 
-### This repository's own routes
+The route is on the loopback and takes the same bearer as every other route.
 
-None beside the protocol's. The seam's service route below answers only on the loopback, for the gateway.
-
-## Calls made on the receiver
-
-### The chat protocol's receiver routes
+## Calls made on the receiving side
 
 Every hand-over goes through bmo-chat's receiver link to `BMO_DISCORD_RECEIVER_URL`, with
 `BMO_DISCORD_RECEIVER_TOKEN`, as the protocol states it:
 
 | Route | What is handed over |
 |---|---|
-| `POST /message` | a message a room said, read by any of the accounts; and the agent's own words read back down a socket |
-| `POST /edited` | a message already handed over, said again with different words |
+| `PUT /rooms/{roomId}/messages/{messageId}` | a message a room said (`live`), a message already handed over and changed (`edit`), and the agent's own words read back down a socket (`live`) |
 
 What the provider hands over:
 
 - **A message two accounts both see is handed over once.** Its snowflake is the same on every socket, so the
   first socket to read it hands it over and the others find it already handed over.
 - **The agent's own words come back down the socket** like everybody else's. They are handed over under the
-  agent's number in that room, and the receiver keeps them and wakes nobody for them. A send in the avatar
-  voice that carried no words of its own is handed over the same way once it is made.
+  agent's number in that room, and the receiving side keeps them and wakes nobody for them. A send in the
+  avatar voice that carried no words of its own is handed over the same way once it is made.
 - **A message the owner's account reads in a room another account answers** is handed over with the mode
-  `human-reader`, whichever socket reads it first, so the receiver takes it as read through a reader and aims
-  no answer at it.
+  `human-reader`, whichever socket reads it first, so the receiving side takes it as read through a reader and
+  aims no answer at it.
 - **A file is a mark.** A picture is handed over as the picture mark and any other file as the file mark
-  naming it (`lang/ko.toml`); no bytes cross and no `attachment` or `gathered` is made.
-- **No room facts cross with a hand-over.** The receiver asks the room routes for what it needs of a room.
+  naming it (`lang/ko.toml`); no bytes cross, and the provider declares no `fetchMedia`.
+- **Room facts travel with the hand-over.** `room.kind`, `room.identity` and `room.privateTo` carry what the
+  provider already knows, so the receiving side need not ask for it.
 - **The context** carries the author's handle as `senderUsername`, the words the author typed as
   `spokenText`, Discord's own payload as `metadata`, and `carriesFile` where the message carried a file.
 
-### Needed from the receiver
+### Needed from the receiving side
 
-Nothing. Every hand-over this provider makes is a protocol route the receiver's boundary states.
+Nothing. The only route this provider calls is the protocol's hand-over route.
 
 ## The seam between the service and the gateway
 
@@ -92,20 +79,16 @@ one. A failure is answered with the protocol's error shape.
 
 | Route | Body | Answer |
 |---|---|---|
-| `GET /health` | | `ready` (boolean), `reason` (string or null): whether at least one account's token is set, and which settings are missing where none is |
-| `POST /gateway/send` | the protocol's send request, of a verb the declaration carries | the protocol's send result: `sent` with `messageId`, or `refused` with a bmo-chat refusal as its code, `label` and fields; the service writes the refusal's sentence |
-| `POST /gateway/room/owns` | `chatId` | `owns` (boolean) |
-| `POST /gateway/room/identity` | `chatId` | `identity` (number or null) |
-| `POST /gateway/room/is-owner` | `chatId` | `kind` (`owner` or `group`) |
-| `POST /gateway/room/private-of` | `chatId` | `person` (number or null) |
-| `POST /gateway/room/title` | `chatId` | `title` (string or null) |
-| `GET /gateway/owner-room` | | `chatId` (number or null) |
+| `GET /health` | | `ready` (boolean), `reason` (string or null) and `version` |
+| `POST /sends` | the protocol's `ChatSendRequest`, of a kind the declaration carries | 201 with `messageId` and `missed`; a refusal or a failure in the error shape |
+| `GET /rooms/{roomId}` | | the protocol's `ProviderRoom`; 404 `not-found` where the number is not this provider's |
+| `GET /owner` | | the protocol's `ProviderOwner`: `roomId` (number or null) |
 
 ### The service's route, called by the gateway
 
 | Route | Body | Answer |
 |---|---|---|
-| `POST /service/inbound` | `kind` (`message` or `edited`) and the hand-over's body as the protocol states it | `{}` once the service has handed it on; the receiver's failure in the error shape |
+| `PUT /rooms/{roomId}/messages/{messageId}` | the protocol's `HandedMessage` | the message as the receiving side holds it, 201 or 200; the receiving side's failure in the error shape |
 
 The gateway offers a hand-over again only while the service refuses the connection, within the protocol's
 patience window, as the protocol's retry rule states. A hand-over that still does not go is not marked as handed
@@ -121,7 +104,7 @@ The platform's own, kept as they have always been named:
 |---|---|---|
 | `BMO_DISCORD_TOKEN` | both | the application's bot token; the `bot-account` mode is inactive without it |
 | `BMO_DISCORD_USER_TOKEN` | both | the owner's own user token; the `human-reader` and `human-avatar` modes are inactive without it |
-| `BMO_DISCORD_SELF_TOKEN` | both | the user token of an account that belongs to the agent; the `human-as-agent` mode is inactive without it |
+| `BMO_DISCORD_SELF_TOKEN` | both | the user token of an account that belongs to the agent; the `own-account` mode is inactive without it |
 | `BMO_DISCORD_OWNER_ID` | gateway | the owner's Discord account id, so the owner's words are filed under the owner's number |
 | `BMO_DISCORD_OWNER_CHANNEL` | gateway | the DM channel that is the owner's one-to-one with the agent; a channel says it is a DM, never whose |
 | `BMO_DISCORD_STICKERS` | gateway | the agent's stickers as `emoji:id` pairs separated by commas; a sticker asked for by an emoji not paired is refused |
@@ -136,10 +119,10 @@ This provider's own:
 | `BMO_DISCORD_PORT` | both | the loopback port the service listens on; 3230 where unset |
 | `BMO_DISCORD_GATEWAY_PORT` | both | the loopback port the gateway listens on; 3231 where unset |
 | `BMO_DISCORD_ROUTE_TOKEN` | both | the bearer every route of the service and of the gateway takes; required |
-| `BMO_DISCORD_RECEIVER_URL` | service | the receiver's base address; required |
-| `BMO_DISCORD_RECEIVER_TOKEN` | service | the token the receiver's routes take; required |
+| `BMO_DISCORD_RECEIVER_URL` | service | the receiving side's base address; required |
+| `BMO_DISCORD_RECEIVER_TOKEN` | service | the token the receiving side's routes take; required |
 | `BMO_DISCORD_DATA` | gateway | the provider's own data folder, inside no checkout; it holds the number store. Required |
-| `BMO_DISCORD_AVATAR_PREFIX` | both | the prefix the agent's words carry in the avatar voice, which the deployment writes from the agent's registration; the `human-avatar` mode is inactive while it is unset |
+| `BMO_DISCORD_AVATAR_PREFIX` | both | the prefix the deployment writes from the agent's registration, used to recognise the agent's words read back and, where a send names none, before the words it sends; the `human-avatar` mode is inactive while it is unset |
 | `BMO_DISCORD_SENDER_NAME` | gateway | the name the agent's own words are handed over under |
 | `BMO_DISCORD_CLIENT_NAME` | gateway | the client name the bot account's socket identifies itself with to Discord |
 
@@ -148,12 +131,24 @@ This provider's own:
 The service's binary, `bmo-discord`, has two verbs: `serve` runs the service, and `health` answers 0 once the
 running service's own `GET /health` says ready, for the deployment's health check.
 
+## The clients
+
+`docs/openapi.json` is this repository's own API. `tools/generate.ts` generates both clients from it:
+
+| Client | File | Calls |
+|---|---|---|
+| Rust | `src/seam.rs` | the gateway's routes |
+| TypeScript | `gateway/src/seam.ts` | the service's hand-over route |
+
+Neither client is edited by hand. The provider routes another unit calls are reached through bmo-chat's own
+published clients, `bmo-chat` and `bmo-chat-client`; this repository writes no client of them.
+
 ## Contract gaps
 
-Statements this provider makes that a sibling's document does not yet match, each for that sibling to take up:
+Statements this provider's callers rely on that a sibling's document does not yet match, each for that sibling
+to take up:
 
-- **bmo-chat's** `human-avatar` voice says the caller supplies the prefix, but no send field carries one, so
-  the provider takes it from `BMO_DISCORD_AVATAR_PREFIX`.
-- **bmo-chat** states no way for two providers that both declare `assigned` numbers to keep their ranges apart.
-  This provider holds its own ranges (`docs/discord.md`, 「Numbering」), clear of KakaoTalk's and of Telegram's
-  native numbers; nothing checks that another provider's range stays clear of them.
+- **bmo-chat publishes no TypeScript client.** Its two Rust crates serve a Rust provider, and the gateway's
+  protocol pieces (`gateway/src/chat.ts`) are written here from bmo-chat's `docs/contract.md` and
+  `docs/protocol.md`. Until a TypeScript package is published, a change in those shapes is matched here by
+  hand.

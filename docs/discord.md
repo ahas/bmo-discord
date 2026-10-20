@@ -30,7 +30,7 @@ is set up and what it can do.
 | `can` | `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing`, `edit`, as `policy/discord.toml` lists them |
 | `dialect` | `discord-markdown` (「The dialect」) |
 | `shows` | null |
-| `numbering` | `assigned` for rooms, people and messages (「Numbering」) |
+| `numbering` | `assigned` for rooms, people and messages, with the rooms' and people's ranges declared (「Numbering」) |
 | `speakers` | false |
 
 The modes, each standing on its own setting. The service reads the settings as it starts, so a token put in
@@ -41,7 +41,7 @@ place stands its mode up with the next start; the gateway reads them each time i
 | `bot-account` | `all-messages` | `BMO_DISCORD_TOKEN` is set | true |
 | `human-reader` | `all-messages` | `BMO_DISCORD_USER_TOKEN` is set | false |
 | `human-avatar` | `all-messages` | `BMO_DISCORD_USER_TOKEN` and `BMO_DISCORD_AVATAR_PREFIX` are set | true |
-| `human-as-agent` | `all-messages` | `BMO_DISCORD_SELF_TOKEN` is set | true |
+| `own-account` | `all-messages` | `BMO_DISCORD_SELF_TOKEN` is set | true |
 
 An inactive mode's reason names the setting it is missing. The reader's answers are never pinned to a message
 it delivered, which `policy/discord.toml` keeps as the voices whose answers go out unpinned.
@@ -81,8 +81,11 @@ The account is a person's, so the agent's words and the owner's come in under th
 the prefix tells them apart, which is why everything the agent puts out in that voice carries it and why a
 message carrying it is never read as the owner's.
 
-- **The prefix is configuration**, `BMO_DISCORD_AVATAR_PREFIX`, which the deployment writes from the agent's
-  registration; the provider holds no agent's name. While it is unset the avatar mode is inactive.
+- **A send may name its prefix.** The protocol's send carries `prefix`, and that is what a send in the avatar
+  voice puts before its words; the deployment's `BMO_DISCORD_AVATAR_PREFIX` stands where the send names none.
+- **The deployment's prefix is configuration**, written from the agent's registration; the provider holds no
+  agent's name. It is also what the provider reads a message back by, so the agent's own words are recognised.
+  While it is unset the avatar mode is inactive.
 - **Everything the agent puts out in that voice carries the prefix**: a text, each part of a split one since
   each is a message of its own, a caption, which is written as the prefix alone where there was none so the
   echo is still recognised, and an edit of its own message. Words that already carry it go as they are.
@@ -130,8 +133,11 @@ message carrying it is never read as the owner's.
 - **The ranges:** room numbers count down from −8,000,000,000,000 and person numbers count up from
   8,000,000,000,000, each taking one past the furthest the counter has ever reached, so a number once given is
   never given again. A message number counts up from one within its room, past the highest the room was ever
-  given. These ranges stand clear of KakaoTalk's (rooms below −9,000,000,000,000, people above
-  9,000,000,000,000) and of Telegram's native numbers.
+  given.
+- **The declaration carries the ranges** (`policy/discord.toml`): rooms from −8,999,999,999,999 to
+  −8,000,000,000,000 and people from 8,000,000,000,000 to 8,999,999,999,999, both ends included. They stand
+  clear of KakaoTalk's (rooms below −9,000,000,000,000, people above 9,000,000,000,000) and of Telegram's
+  native numbers, and the receiving side refuses a numbering whose ranges overlap another provider's.
 - **A message is handed over once.** The store marks a message as handed over as it goes to the service, so a
   second socket reading it finds it there; a hand-over that fails takes the mark off again.
 - **A DM channel is a one-to-one with the agent.** A message with no guild sends the gateway to ask the
@@ -147,20 +153,25 @@ message carrying it is never read as the owner's.
   cannot be asked for back.
 - **An author Discord gives no name for** is handed over under the unknown-sender name in `lang/ko.toml`,
   and an attachment Discord gives no file name for is named by the unnamed-file word there.
-- **A message taken back** leaves the record as it was: a deletion is handed over to nobody.
+- **A message's origin says what happened.** A message a room said is handed over `live`, and one already
+  handed over whose words or sender changed is handed over `edit`, so the receiving side replaces it with the
+  sender the edit carries. A message taken back leaves the record as it was: a deletion is handed over to
+  nobody.
+- **Times are epoch milliseconds**, as the protocol states them, and rooms, people and messages cross as the
+  provider's signed 64-bit numbers.
 
 ## Refusals
 
-Every refusal is a bmo-chat refusal code with its English sentence:
+Every refusal is a bmo-chat refusal code with its English sentence, answered with that code's status:
 
 | Where | Code | Detail |
 |---|---|---|
 | no token is set | `not-ready` | |
-| a room this provider has not numbered | `platform` | "There is no Discord room {chat}." |
-| a voice whose token or prefix is missing | `platform` | "That account cannot send on Discord: {why}." |
-| an edit, a reaction or a pin of a message this provider has not numbered | `platform` | "Discord has no message {message}." |
-| a sticker the pairing does not hold | `platform` | "No Discord sticker is paired with {emoji}." |
-| a verb the declaration does not carry | `unsupported-capability` | |
+| a room this provider has not numbered | `platform` | "There is no room {room}." |
+| a voice whose token or prefix is missing | `platform` | "That account cannot send: {why}." |
+| an edit, a reaction or a pin of a message this provider has not numbered | `platform` | "There is no message {message}." |
+| a sticker the pairing does not hold | `platform` | "No sticker is paired with {emoji}." |
+| a send the declaration does not carry | `unsupported-capability` | |
 
 ## Tests
 

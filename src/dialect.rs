@@ -7,7 +7,7 @@
 //! for no fold decision.
 
 use bmo_chat::{ChatDialect, ChatDialectLimits, ChatMarkup};
-use bmo_markup::markdown::markdown_parts;
+use bmo_text::markdown::markdown_parts;
 
 use crate::policy::{DialectPolicy, POLICY};
 

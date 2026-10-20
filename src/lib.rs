@@ -3,7 +3,7 @@
 
 pub mod config;
 pub mod dialect;
-pub mod gateway;
 pub mod policy;
 pub mod provider;
 pub mod routes;
+pub mod seam;
