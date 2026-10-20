@@ -1,0 +1,23 @@
+[
+  {
+    "id": "calls/receiver",
+    "title": "Receiver hand-over",
+    "what": "The one call this repository makes on another unit: every message a room said is offered to the receiving side's message route through bmo-chat's receiver link, retried only while nothing listens.",
+    "files": [
+      "src/routes.rs",
+      "src/bin/bmo-discord.rs",
+      "docs/api.md",
+      "docs/boundary-api.md"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [],
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873664,
+    "boundary": {
+      "side": "calls",
+      "repository": "bmo-receiver",
+      "api": "api/http"
+    }
+  }
+]

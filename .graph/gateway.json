@@ -1,8 +1,119 @@
 [
   {
+    "id": "gateway/accounts",
+    "title": "Discord accounts",
+    "what": "The accounts a road holds a socket for, read from the platform's environment: the bot, the owner's own account and the agent's own, each with its voice, plus the owner's id and channel and the sticker pairing.",
+    "files": [
+      "gateway/src/config.ts",
+      "docs/discord.md",
+      "docs/boundary-api.md"
+    ],
+    "symbols": [
+      "DiscordConfig",
+      "DiscordAccount",
+      "discordConfig",
+      "discordAccounts",
+      "accountFor",
+      "voiceMissing",
+      "parseStickers",
+      "discordMissing"
+    ],
+    "aliases": [],
+    "needs": [
+      "gateway/chat-contract"
+    ],
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873641
+  },
+  {
+    "id": "gateway/api",
+    "title": "Discord REST calls",
+    "what": "Every call the gateway makes to Discord's REST API: a message, an edit, a picture, a file, a sticker, a reaction, a pin, a typing state, a channel's name and a direct channel's recipient.",
+    "files": [
+      "gateway/src/api.ts",
+      "docs/discord.md"
+    ],
+    "symbols": [
+      "DiscordCall",
+      "authorization",
+      "sendMessage",
+      "editMessage",
+      "sendImage",
+      "sendFile",
+      "sendSticker",
+      "react",
+      "pin",
+      "channelName",
+      "directRecipient",
+      "typing"
+    ],
+    "aliases": [],
+    "needs": [],
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873643
+  },
+  {
+    "id": "gateway/avatar",
+    "title": "Avatar voice",
+    "what": "The avatar mode written once: the prefix the agent's words carry and are recognised by, the number they are filed under, which rooms that voice answers, and how a send settles on its voice.",
+    "files": [
+      "gateway/src/avatar.ts",
+      "docs/discord.md"
+    ],
+    "symbols": [
+      "avatarPrefix",
+      "isAvatarText",
+      "stripAvatarPrefix",
+      "withAvatarPrefix",
+      "avatarIdentity",
+      "heardInRoom",
+      "answersAsAvatar",
+      "roomIdentity",
+      "isOwnerRoomOf",
+      "privateRoomOfRoad",
+      "readAvatarMessage",
+      "sendVoice",
+      "inVoice"
+    ],
+    "aliases": [],
+    "needs": [
+      "gateway/settings",
+      "gateway/number-store",
+      "gateway/chat-contract"
+    ],
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873648
+  },
+  {
+    "id": "gateway/chat-contract",
+    "title": "Chat wire shapes",
+    "what": "The chat protocol's pieces as the gateway speaks them to the service: sends by kind, handed messages, rooms, the owner, health and the error shape, written here from bmo-chat's contract.",
+    "files": [
+      "gateway/src/chat.ts",
+      "docs/boundary-api.md"
+    ],
+    "symbols": [
+      "ChatSendRequest",
+      "ChatSent",
+      "HandedMessage",
+      "ProviderRoom",
+      "ProviderOwner",
+      "ChatVoice",
+      "ChatHealth",
+      "WireError",
+      "Refusal",
+      "platformRefusal",
+      "notReady"
+    ],
+    "aliases": [],
+    "needs": [],
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873639
+  },
+  {
     "id": "gateway/number-store",
     "title": "Number store",
-    "what": "The gateway's own numbers on bun:sqlite: a number for every Discord channel, person and message in the ranges policy/discord.toml declares, which messages were handed over, each room's voice and each DM's person, in gateway/src/store.ts.",
+    "what": "The gateway's own numbers on bun:sqlite: a number for every Discord channel, person and message, the messages handed over, each room's answering voice and each DM's person, in the ranges the policy declares.",
     "files": [
       "gateway/src/store.ts",
       "gateway/src/machine.ts",
@@ -12,101 +123,126 @@
     "symbols": [
       "Store",
       "KeptMessage",
+      "HandOver",
       "holdChatMachine",
       "chatMachine"
     ],
     "aliases": [],
-    "needs": [],
-    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
+    "needs": [
+      "gateway/settings"
+    ],
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873646
+  },
+  {
+    "id": "gateway/process",
+    "title": "Gateway process",
+    "what": "The gateway's loopback server: /health, /sends, a room and /owner, each behind the route token, with its error shape, stood up beside the sockets and the store.",
+    "files": [
+      "gateway/src/main.ts",
+      "deploy/bmo-discord-gateway.service",
+      "docs/boundary-api.md"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "gateway/reading-and-sending",
+      "gateway/number-store",
+      "gateway/chat-contract",
+      "gateway/settings",
+      "seam/clients"
+    ],
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873656
   },
   {
     "id": "gateway/reading-and-sending",
     "title": "Reading and sending",
-    "what": "The provider side of the gateway: a read message numbered and handed over with its origin, context and room facts, the avatar voice, the room answer and every send by kind and fields, with its refusals, in gateway/src/provider.ts and avatar.ts.",
+    "what": "The provider side of the gateway: a read message numbered and handed over with its origin, context and room facts, every send performed by voice and kind, the room questions, and their refusals.",
     "files": [
       "gateway/src/provider.ts",
-      "gateway/src/avatar.ts",
-      "gateway/src/chat.ts",
-      "gateway/src/settings.ts",
-      "policy/discord.toml",
-      "lang/ko.toml",
-      "docs/discord.md"
+      "docs/discord.md",
+      "docs/boundary-api.md"
     ],
     "symbols": [
       "discordProvider",
       "handleDiscordMessage",
-      "readAvatarMessage",
-      "inVoice"
+      "DiscordRoad",
+      "DiscordProvider",
+      "accountIdFromToken",
+      "discordKey"
     ],
     "aliases": [],
     "needs": [
+      "gateway/sockets",
+      "gateway/api",
+      "gateway/accounts",
+      "gateway/avatar",
       "gateway/number-store",
-      "gateway/rest-calls",
-      "gateway/sockets"
+      "gateway/chat-contract",
+      "gateway/settings",
+      "seam/clients"
     ],
-    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873654
   },
   {
-    "id": "gateway/rest-calls",
-    "title": "Discord REST calls",
-    "what": "Every call the gateway makes on Discord's REST API: messages, edits, pictures, files, stickers, reactions, pins, typing and channel lookups, in gateway/src/api.ts.",
+    "id": "gateway/settings",
+    "title": "Gateway settings and words",
+    "what": "The gateway's own settings and the words a person reads: its ports, the route token, its data folder, the agent's name and avatar prefix, and the policy and language pack it loads.",
     "files": [
-      "gateway/src/api.ts"
+      "gateway/src/settings.ts",
+      "policy/discord.toml",
+      "lang/ko.toml",
+      "settings.example.env",
+      "docs/boundary-api.md"
     ],
     "symbols": [
-      "sendMessage",
-      "sendFile",
-      "react",
-      "pin",
-      "channelName",
-      "directRecipient"
+      "discordPolicy",
+      "discordWords",
+      "fillMarks",
+      "SettingMissing",
+      "avatarPrefixMissing",
+      "avatarPrefixSetting",
+      "senderName",
+      "clientName",
+      "routeToken",
+      "gatewayPort",
+      "servicePort",
+      "dataFolder"
     ],
     "aliases": [],
     "needs": [],
-    "base": "e9263d4d6af2669b35a903573e5fc663aea0fe62"
-  },
-  {
-    "id": "gateway/seam-server",
-    "title": "Gateway seam server",
-    "what": "The gateway process: its loopback routes (health, sends, a room, the owner), the bearer check, the hand-over of each message to the service once through the generated client, and the sockets started, in gateway/src/main.ts and seam.ts.",
-    "files": [
-      "gateway/src/main.ts",
-      "gateway/src/seam.ts",
-      "deploy/bmo-discord-gateway.service",
-      "docs/api.md",
-      "docs/openapi.json",
-      "tools/generate.ts"
-    ],
-    "symbols": [
-      "Service",
-      "SeamError"
-    ],
-    "aliases": [],
-    "needs": [
-      "gateway/reading-and-sending",
-      "gateway/number-store"
-    ],
-    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873637
   },
   {
     "id": "gateway/sockets",
     "title": "Gateway sockets",
-    "what": "One Discord gateway socket per configured token: identify, heartbeat, resume and reopen, the intent refusal, and the reading of a dispatch into a message with epoch-millisecond times, in gateway/src/gateway.ts and events.ts.",
+    "what": "The Discord gateway socket each account keeps open: the hello answered with an identify or a resume, the heartbeat on its beat, reconnection with growing delay, and the intent refusal that stands down.",
     "files": [
       "gateway/src/gateway.ts",
       "gateway/src/events.ts",
-      "gateway/src/config.ts",
       "docs/discord.md"
     ],
     "symbols": [
       "openGateway",
+      "DiscordSocket",
+      "parseFrame",
       "parseDispatch",
       "identifyFrame",
-      "discordConfig",
-      "discordAccounts"
+      "resumeFrame",
+      "heartbeatFrame",
+      "gatewayOps",
+      "gatewayIntents",
+      "disallowedIntentsClose",
+      "DiscordMessage"
     ],
     "aliases": [],
-    "needs": [],
-    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
+    "needs": [
+      "gateway/settings"
+    ],
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873650
   }
 ]

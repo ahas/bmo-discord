@@ -2,7 +2,7 @@
   {
     "id": "service/binary",
     "title": "Service binary",
-    "what": "The bmo-discord binary: serve stands the routes up on the loopback with the receiver link, and health asks the running service whether it is ready, in src/bin/bmo-discord.rs.",
+    "what": "The bmo-discord binary: serve stands the routes up on the loopback with the receiver link, and health asks the running service whether it is ready, for the deployment to wait on.",
     "files": [
       "src/bin/bmo-discord.rs",
       "deploy/bmo-discord.service",
@@ -12,15 +12,18 @@
     "symbols": [],
     "aliases": [],
     "needs": [
-      "api/provider-routes",
-      "service/declaration"
+      "service/declaration",
+      "service/routes",
+      "seam/clients",
+      "api/provider-routes"
     ],
-    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873666
   },
   {
     "id": "service/declaration",
     "title": "Provider declaration",
-    "what": "The Discord provider as bmo-chat serves it: key, label, version, the four modes on their settings, the capabilities, numbering with its ranges, health, every room question and send forwarded to the gateway, in src/provider.rs.",
+    "what": "The Discord provider as bmo-chat serves it: key, label, modes on their settings, capabilities, numbering ranges, health, and every room question and send forwarded to the gateway.",
     "files": [
       "src/provider.rs",
       "src/config.rs",
@@ -33,19 +36,21 @@
       "DiscordProvider",
       "Config",
       "POLICY",
-      "WORDS"
+      "WORDS",
+      "KEY"
     ],
     "aliases": [],
     "needs": [
       "service/dialect",
-      "service/gateway-client"
+      "seam/clients"
     ],
-    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873658
   },
   {
     "id": "service/dialect",
     "title": "Discord markdown dialect",
-    "what": "The discord-markdown dialect: marks go out as written, a long answer divided at two thousand characters by bmo-text, no fold and no fault, in src/dialect.rs.",
+    "what": "The discord-markdown dialect: Discord reads the marks itself, so markup and plain text go out as written, a long answer is divided at two thousand characters, and nothing folds or faults.",
     "files": [
       "src/dialect.rs",
       "policy/discord.toml",
@@ -56,25 +61,27 @@
     ],
     "aliases": [],
     "needs": [],
-    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873635
   },
   {
-    "id": "service/gateway-client",
-    "title": "Gateway client",
-    "what": "The service's generated client of the gateway, written from docs/openapi.json by tools/generate.ts: its health, a send, a room and the owner's room, in src/seam.rs.",
+    "id": "service/routes",
+    "title": "Served routes",
+    "what": "The service's routes: the chat protocol's provider routes as bmo-chat serves them, and the one hand-over route the gateway calls, which passes what a room said on to the receiving side.",
     "files": [
-      "src/seam.rs",
-      "docs/openapi.json",
-      "tools/generate.ts"
+      "src/routes.rs",
+      "docs/api.md",
+      "docs/boundary-api.md"
     ],
     "symbols": [
-      "Gateway",
-      "GatewayFailure"
+      "service"
     ],
     "aliases": [],
     "needs": [
-      "gateway/seam-server"
+      "service/declaration",
+      "calls/receiver"
     ],
-    "base": "a5274e6336e923beb99544a938b70ba2f82fd5e5"
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873660
   }
 ]

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "seam/clients",
+    "title": "Seam clients",
+    "what": "The two generated clients of this repository's own API: the service's Rust client of the gateway and the gateway's TypeScript client of the service, both written from docs/openapi.json by tools/generate.ts.",
+    "files": [
+      "tools/generate.ts",
+      "docs/openapi.json",
+      "docs/api.md",
+      "src/seam.rs",
+      "gateway/src/seam.ts"
+    ],
+    "symbols": [
+      "Gateway",
+      "GatewayFailure",
+      "Service",
+      "SeamError"
+    ],
+    "aliases": [],
+    "needs": [
+      "api/provider-routes"
+    ],
+    "base": "888ab00385107262c742adcf9a7d35f1f266202f",
+    "changed": 1792498873652
+  }
+]
