@@ -1,6 +1,6 @@
 # How the testbed tests, checks, builds and deploys this repository, in the testbed's declaration format. The
-# Cargo suite is the service's package; the bun suite is the gateway in `gateway/`. Tests are deferred in this
-# phase, so both suites find none yet.
+# Cargo suite is the service's package; the bun suite is the gateway in `gateway/`. The suite runs the
+# repository-wide personal-data check (PERSONAL-DATA.md); the behaviour tests are deferred (README.md).
 
 testbed = 0
 name = "discord"

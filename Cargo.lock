@@ -150,13 +150,14 @@ dependencies = [
 
 [[package]]
 name = "bmo-discord"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-trait",
  "axum",
  "bmo-chat",
  "bmo-text",
  "clap",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

@@ -5,10 +5,13 @@ base library `bmo-chat`: it declares its read modes, what it can do and the dial
 rooms through the bot account, the owner's account and an account of the agent's own, sends the verbs it
 declares, and hands what its rooms say to the receiver.
 
-## Status
+## Tests and the test account
 
-- **Tests are deferred.** This phase moves the code only; the repository holds no tests yet, and the only
-  verification is the build check below.
+- **The behaviour tests are deferred.** This phase moves the code only; the suite holds the repository-wide
+  personal-data check.
+- **The personal-data check reads every tracked file** for a mail address, a home path, a telephone number, a
+  token and a private network address, and names the file, the line and the kind of each finding
+  (`PERSONAL-DATA.md`).
 - **No Discord test account is connected**, so nothing here has been tried against a live Discord server.
 
 ## Layout
@@ -21,13 +24,14 @@ declares, and hands what its rooms say to the receiver.
 | `lang/` | the words a person reads that this provider draws: the platform's label and the marks a message is handed over with |
 | `tools/` | `generate.ts`, which writes both clients from `docs/openapi.json` |
 | `deploy/` | the two service units a deployment links: the Rust service and the bun gateway |
+| `tests/` | the repository's checks: the personal-data check over every tracked file |
 | `docs/` | the canonical statements of what the provider does |
 | `.graph/` | this repository's code graph, written only by `bmo-graph` |
 
 At the root stand the Cargo manifest of the service's one package, the version in `VERSION`, `testbed.toml`
 (the testbed's declaration of how this repository is tested, checked, built and deployed), the Korean ledger
 the testbed's check reads, `settings.example.env` (every setting both processes read, with neutral example
-values), `rustfmt.toml` and `CLAUDE.md`.
+values), `PERSONAL-DATA.md` (what personal data may never stand here), `rustfmt.toml` and `CLAUDE.md`.
 
 ## Documents
 
@@ -37,14 +41,14 @@ values), `rustfmt.toml` and `CLAUDE.md`.
 | `docs/openapi.json` | The same API in OpenAPI 3.1, from which both clients are generated |
 | `docs/boundary-api.md` | The boundary: the routes served, the calls made on the receiving side, the seam between the service and the gateway, the configuration and the clients |
 | `docs/discord.md` | The provider: its declaration, the sockets, which account answers a room, the avatar voice, the verbs, the dialect, the numbering and the refusals |
+| `PERSONAL-DATA.md` | What personal data may never stand here, and the check that holds it |
 
 ## Version
 
 - **One version for the whole repository,** in semver. `VERSION` holds it, the package's version equals it,
   and the gateway's `package.json` carries it.
 - **A major change is a change to a contract a consumer reads;** an addition no existing consumer reads is a
-  minor change, anything else a patch. The version is 0.2.0: the provider routes moved to bmo-chat's fixed
-  protocol, which every caller of this provider reads.
+  minor change, anything else a patch. The version is 0.2.1.
 
 ## Build check
 

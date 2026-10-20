@@ -65,6 +65,22 @@
     "changed": 1792511185568
   },
   {
+    "id": "service/repository-checks",
+    "title": "Personal-data check",
+    "what": "The repository-wide check over every tracked file: no mail address outside the reserved example domains, no home path of a person, no telephone number, token or private network address, as PERSONAL-DATA.md states it. A finding names the file, the line and the kind, never the value.",
+    "files": [
+      "tests/personal_data.rs",
+      "PERSONAL-DATA.md"
+    ],
+    "symbols": [],
+    "aliases": [
+      "개인정보"
+    ],
+    "needs": [],
+    "base": "ae48ca922b30001a596a4a0f404eeb4038108c18",
+    "changed": 1792532425821
+  },
+  {
     "id": "service/routes",
     "title": "Served routes",
     "what": "The service's routes: the chat protocol's provider routes as bmo-chat serves them, and the one hand-over route the gateway calls, which passes what a room said on to the receiving side.",

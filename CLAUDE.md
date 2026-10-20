@@ -35,10 +35,11 @@ loopback, holds the Discord accounts' sockets, makes every REST call and keeps t
   documents and commit messages. A refusal is a bmo-chat refusal code with an English sentence. No code file
   holds Hangul.
 - **No agent names, owner names, host names, home paths or private network addresses** in code, documents or
-  commits. A deployment value that would name one is configuration (`docs/boundary-api.md`,
-  「Configuration」).
+  commits. `PERSONAL-DATA.md` states the prohibition whole and `tests/personal_data.rs` holds it. A deployment
+  value that would name one is configuration (`docs/boundary-api.md`, 「Configuration」).
 - **Tests live in `tests/`** for the service and `gateway/tests/` for the gateway; no test module sits beside
-  runtime code. Tests are deferred in this phase.
+  runtime code. The suite holds the repository-wide personal-data check; the behaviour tests are deferred in
+  this phase.
 - **No directory named after its parent** (no `x/x`), and **only Cargo manifests at the root**: the root
   `Cargo.toml` is the service's one package. The gateway's `package.json` is in `gateway/`.
 - **Documents state what is true now**: no change history, no quoted source and no file-and-line pins.
@@ -51,7 +52,7 @@ A change moves through three stages in order:
 2. Review: read the whole diff against what the change is for and the document governing it, then
    `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` (108 columns, 2-space indentation, as
    `rustfmt.toml` sets).
-3. Verification: the suites `testbed.toml` declares, once tests exist.
+3. Verification: the suites `testbed.toml` declares, run at the close.
 
 Cargo runs through the testbed's Cargo verb, `bmo-testbed cargo <cargo arguments…>`, which builds in the one
 shared build directory; no checkout keeps a `target/` of its own. Where the installed testbed predates that
