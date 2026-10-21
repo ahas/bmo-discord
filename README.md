@@ -26,7 +26,7 @@ declares, and hands what its rooms say to the receiver.
 | `deploy/` | the two service units a deployment links: the Rust service and the bun gateway |
 | `tests/` | the repository's checks: the personal-data check over every tracked file |
 | `docs/` | the canonical statements of what the provider does |
-| `.graph/` | this repository's code graph, written only by `bmo-graph` |
+| `.graph/` | this repository's code graph, written only by `bmo-graph`. Its area files are generated in the checkout and untracked, so a fresh checkout builds them again, while `settings.toml` is the repository's configuration and stays tracked |
 
 At the root stand the Cargo manifest of the service's one package, the version in `VERSION`, `testbed.toml`
 (the testbed's declaration of how this repository is tested, checked, built and deployed), the Korean ledger
