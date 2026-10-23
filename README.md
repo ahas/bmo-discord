@@ -25,7 +25,7 @@ mode runs on a user account: Discord's terms forbid automating one.
 | `lang/` | the words a person reads that this provider draws: the platform's label and the marks a message is handed over with |
 | `tools/` | `generate.ts`, which writes both clients from `docs/openapi.json` |
 | `deploy/` | the two service units a deployment links: the Rust service and the bun gateway |
-| `tests/` | the repository's checks: the personal-data check over every tracked file, and the declaration test |
+| `tests/` | the repository's checks: the personal-data check over every tracked file, the declaration test, and the room-modes test |
 | `docs/` | the canonical statements of what the provider does |
 | `.graph/` | this repository's code graph, written only by `bmo-graph`. Its area files are generated in the checkout and untracked, so a fresh checkout builds them again, while `settings.toml` is the repository's configuration and stays tracked |
 
@@ -49,7 +49,7 @@ values), `PERSONAL-DATA.md` (what personal data may never stand here), `rustfmt.
 - **One version for the whole repository,** in semver. `VERSION` holds it, the package's version equals it,
   and the gateway's `package.json` carries it.
 - **A major change is a change to a contract a consumer reads;** an addition no existing consumer reads is a
-  minor change, anything else a patch. The version is 0.4.0.
+  minor change, anything else a patch. The version is 0.5.0.
 
 ## Build check
 

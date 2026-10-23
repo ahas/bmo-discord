@@ -48,6 +48,16 @@ impl DiscordProvider {
     }
   }
 
+  /// The voices a room is read by and may be sent in: the declaration's active ones, alike in every room.
+  fn active_voices(&self) -> Vec<ChatVoice> {
+    self
+      .modes()
+      .into_iter()
+      .filter(|mode| mode.standing == ChatModeStanding::Active)
+      .map(|mode| mode.voice)
+      .collect()
+  }
+
   /// The mode on the bot account, which stands on its token: active where the token is set, and waiting on
   /// it, said by name, where it is not. An answer can be pinned to what it delivered.
   fn bot_mode(missing: Option<&str>) -> ChatReadMode {
@@ -279,7 +289,10 @@ impl ChatProvider for DiscordProvider {
 
   async fn room(&self, room_id: i64) -> Result<Option<ProviderRoom>, ChatFailure> {
     match self.gateway.room(room_id).await {
-      Ok(room) => Ok(Some(room)),
+      Ok(room) => Ok(Some(ProviderRoom {
+        modes: Some(self.active_voices()),
+        ..room
+      })),
       Err(GatewayFailure::Answered { status: 404, .. }) => Ok(None),
       Err(failure) => Err(failure.into()),
     }

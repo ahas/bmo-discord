@@ -1,6 +1,6 @@
 # The Discord provider's fixed API
 
-**고정됨 0.4.0.**
+**고정됨 0.5.0.**
 
 This document is `bmo-discord`'s fixed API, in the common wire format, grouped by the resource each route
 acts on. `docs/openapi.json` is the same contract in machine form, and the two clients beside the code —
@@ -69,7 +69,8 @@ setting missing while it is not.
 | `GET /rooms/{roomId}` | | one room: `id`, `owns`, `identity`, `kind` (`owner` or `group`), `privateTo`, `title`. 404 `not-found` where the number is not this provider's |
 
 `identity` is the sender number the account's own words carry in the room, and `privateTo` is the one person of
-a one-to-one, null for a room of several.
+a one-to-one, null for a room of several. The gateway says nothing of a room's modes: the service answers the
+protocol's room with `modes`, the voices its declaration has active, which every room takes alike.
 
 ## The owner
 

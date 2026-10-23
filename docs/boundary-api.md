@@ -77,7 +77,7 @@ one. A failure is answered with the protocol's error shape.
 |---|---|---|
 | `GET /health` | | `ready` (boolean), `reason` (string or null) and `version` |
 | `POST /sends` | the protocol's `ChatSendRequest`, of a kind the declaration carries | 201 with `messageId` and `missed`; a refusal or a failure in the error shape |
-| `GET /rooms/{roomId}` | | the protocol's `ProviderRoom`; 404 `not-found` where the number is not this provider's |
+| `GET /rooms/{roomId}` | | the protocol's `ProviderRoom` but its `modes`, which the service fills from its declaration; 404 `not-found` where the number is not this provider's |
 | `GET /owner` | | the protocol's `ProviderOwner`: `roomId` (number or null) |
 
 ### The service's route, called by the gateway
