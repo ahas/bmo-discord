@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
-use bmo_chat::{ChatCapability, ChatVoice};
+use bmo_chat::ChatCapability;
 use serde::Deserialize;
 
 /// One end of a range this provider assigns numbers in, both ends included.
@@ -40,8 +40,8 @@ pub struct DialectPolicy {
 pub struct Policy {
   /// What the provider sends, as its declaration's `can`.
   pub can: BTreeSet<ChatCapability>,
-  /// The voices whose answers go out unpinned.
-  pub unpinned: Vec<ChatVoice>,
+  /// Discord's terms on automating a user account: why the modes on a person's account are unsupported.
+  pub person_accounts: String,
   pub numbering: NumberingPolicy,
   pub dialect: DialectPolicy,
 }

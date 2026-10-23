@@ -1,9 +1,11 @@
 # The Discord provider's fixed values (docs/discord.md). The words a person reads are in `lang/ko.toml`.
 
-# What the provider sends, as its declaration's `can`, and the voices whose answers go out unpinned: the
-# owner's account only reads beside the bot, so an answer never points at what it read.
+# What the provider sends, as its declaration's `can`.
 can = ["text", "replyTo", "photo", "document", "sticker", "reaction", "pin", "typing", "edit"]
-unpinned = ["human-reader"]
+
+# Discord's terms forbid automating a user account, so the modes on a person's account, `human-reader` and
+# `human-avatar`, are declared unsupported with the terms' own words as their reason.
+person_accounts = "Automating normal user accounts (generally called \"self-bots\") outside of the OAuth2/bot API is forbidden, and can result in an account termination if found."
 
 # The ranges this provider assigns numbers in, both ends included, held clear of the ranges other chat
 # providers declare. Rooms count down from `last`; people count up from `first`.

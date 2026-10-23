@@ -217,17 +217,8 @@ export class Store {
         return row?.native_id ?? null;
       },
 
-      // A message already handed over, with the sender it was handed over under, or null.
-      getMessage: async (chatId: number, messageId: number): Promise<{ senderId: number | null } | null> => {
-        const row = db.query("SELECT sender_id FROM handed_over WHERE chat_id = $chatId AND message_id = $messageId")
-          .get({ chatId, messageId }) as { sender_id: number | null } | null;
-
-        return row === null ? null : { senderId: row.sender_id };
-      },
-
-      // A message kept of the store's own accord — the agent's own words read back, a send in the avatar
-      // voice, words read beside the account that answers the room — handed over once, where it was not
-      // already. Returns whether it was handed over now.
+      // A message kept of the store's own accord — the agent's own words read back — handed over once, where
+      // it was not already. Returns whether it was handed over now.
       insertMessageIfAbsent: async (kept: KeptMessage): Promise<boolean> => {
         if (!markHandedOver(kept)) {
           return false;
@@ -263,12 +254,11 @@ export class Store {
         return row?.voice ?? null;
       },
 
-      // Writes the voice down. `settle` false leaves a voice already written in place, which is how a voice
-      // that only answers where no other reaches is kept from displacing one that does.
-      setRoomVoice: async (_provider: string, chatId: number, voice: string, settle = true): Promise<void> => {
+      // Writes the voice down over whatever stood.
+      setRoomVoice: async (_provider: string, chatId: number, voice: string): Promise<void> => {
         db.query(
           `INSERT INTO room_voices (chat_id, voice) VALUES ($chatId, $voice)
-            ON CONFLICT (chat_id) DO ${settle ? "UPDATE SET voice = excluded.voice" : "NOTHING"}`,
+            ON CONFLICT (chat_id) DO UPDATE SET voice = excluded.voice`,
         ).run({ chatId, voice });
       },
 

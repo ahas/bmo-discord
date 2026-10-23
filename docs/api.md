@@ -1,6 +1,6 @@
 # The Discord provider's fixed API
 
-**고정됨 0.2.0.**
+**고정됨 0.3.0.**
 
 This document is `bmo-discord`'s fixed API, in the common wire format, grouped by the resource each route
 acts on. `docs/openapi.json` is the same contract in machine form, and the two clients beside the code —
@@ -15,15 +15,18 @@ here exactly as they state them.
 ## What the provider serves
 
 - **The chat protocol's provider routes**, all of them, as bmo-chat's `provider_router` serves them: the
-  declaration, health, sends, a room, the owner, a message's files, the dialect readings and checks, and the
-  avatar routes. This repository adds no public route beside them.
+  declaration, health, sends, the rooms of the account, a room, the owner, a message's files, the dialect
+  readings and checks, and the avatar routes. This repository adds no public route beside them.
 - **Its own loopback API**, the seam between its two processes, stated below. It is not a route another unit
   calls; both processes listen on `127.0.0.1` only and every route takes `BMO_DISCORD_ROUTE_TOKEN` as its
   bearer, answering 401 without it.
 
 The provider declares `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing` and `edit`.
-It declares no `fetchMedia`, no `avatars`, no `history` and no album, audio, voice or delete send, so the base
-refuses those before this provider is asked.
+It declares no `fetchMedia`, no `avatars`, no `history`, no `roomList` and no album, audio, voice or delete
+send, so the base refuses those before this provider is asked.
+
+Its `human-reader` and `human-avatar` modes are declared `unsupported`, with Discord's terms as the reason
+(`docs/discord.md`, 「The declaration」).
 
 ## The wire
 
@@ -65,7 +68,7 @@ the first setting missing while it is not.
 | `GET /rooms/{roomId}` | | one room: `id`, `owns`, `identity`, `kind` (`owner` or `group`), `privateTo`, `title`. 404 `not-found` where the number is not this provider's |
 
 `identity` is the sender number the account's own words carry in the room, and `privateTo` is the one person of
-a one-to-one, null for a room of several, a group DM and a room answered in the avatar voice.
+a one-to-one, null for a room of several and a group DM.
 
 ## The owner
 
@@ -80,9 +83,8 @@ a one-to-one, null for a room of several, a group DM and a room answered in the 
 | `POST /sends` | a send as bmo-chat's `docs/contract.md` states it: `roomId`, `kind`, the kind's `fields`, and optional `mode`, `speaker`, `tag`, `prefix` and `replyToMessageId` | 201 with `messageId` (null where Discord gives none back) and `missed` (empty, since no album goes) |
 | | | A send that does not go is answered with the refusal's code and status |
 
-`prefix` is the words the answers carry before them in the `human-avatar` voice. The send's prefix stands where
-it gives one; the deployment's `BMO_DISCORD_AVATAR_PREFIX` stands where it does not, so a caller that knows no
-prefix still sends words the room recognises as the agent's.
+`prefix` belongs to the `human-avatar` voice, which this provider declares `unsupported`, so it changes no send.
+A send whose `mode` names a voice on a person's account is refused `platform`.
 
 Bytes — a document's `bytes` — are base64.
 

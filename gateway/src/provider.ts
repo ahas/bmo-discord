@@ -6,27 +6,15 @@
 // It reads by as many accounts as it is given tokens for, one socket each. The official bot account
 // is delivered a room's every message where the application has been given the MESSAGE_CONTENT
 // intent, which is privileged and asked for in the developer portal; without it the gateway refuses
-// the connection outright and says so (`gateway.ts`). The owner's own account reads the rooms it is in
-// beside the bot, and answers in the avatar voice where no other account of this road is
-// (`avatar.ts`); an account made for the agent answers in its own rooms as the agent, with no prefix.
+// the connection outright and says so (`gateway.ts`). An account made for the agent answers in its own
+// rooms as the agent, with no prefix. Discord's terms forbid automating a person's account, so the road
+// holds no token of the owner's own and never reads or answers through it.
 //
 // Ids: a channel, a person and a message are all snowflakes — 64-bit numbers above what a number
 // holds exactly — so the store numbers all three itself and the platform's ids stay strings.
 
-import {
-  answersAsAvatar,
-  avatarIdentity,
-  avatarPrefix,
-  heardInRoom,
-  inVoice,
-  isOwnerRoomOf,
-  privateRoomOfRoad,
-  readAvatarMessage,
-  sendVoice,
-  stripAvatarPrefix,
-} from "./avatar";
 import { chatMachine } from "./machine";
-import { avatarPrefixMissing, discordPolicy, discordWords, fillMarks, senderName } from "./settings";
+import { discordPolicy, discordWords, fillMarks, senderName } from "./settings";
 import { channelName, directRecipient, editMessage, pin, react, sendFile, sendImage, sendMessage, sendSticker, typing } from "./api";
 import { accountFor, discordAccounts, discordConfig, discordMissing, voiceMissing } from "./config";
 import { openGateway } from "./gateway";
@@ -38,7 +26,7 @@ import type { DiscordCall } from "./api";
 import type { DiscordAccount, DiscordConfig } from "./config";
 import type { DiscordMessage } from "./events";
 import type { DiscordSocket } from "./gateway";
-import type { ChatSendRequest, ChatSent, ChatVoice, HandedMessage, ProviderRoom } from "./chat";
+import type { ChatSendRequest, ChatSent, ProviderRoom } from "./chat";
 
 // The name this provider is known by: written onto every message it hands over, and the provider whose
 // rooms, people and messages the store numbers.
@@ -104,27 +92,31 @@ function agentAccountIds(discord: DiscordConfig): string[] {
   });
 }
 
-// The owner's own account here: the one the settings name, or the one the owner's token is.
-function ownerAccountId(discord: DiscordConfig): string | null {
-  return discord.ownerUserId ?? (discord.userToken === null ? null : accountIdFromToken(discord.userToken));
-}
-
-// The number the owner's words are filed under: the person the store numbers for the owner's account.
+// The number the owner's words are filed under: the person the store numbers for the owner's account, as
+// the settings name it.
 async function ownerNumber(archive: Store, discord: DiscordConfig): Promise<number | null> {
-  const owner = ownerAccountId(discord);
+  const owner = discord.ownerUserId;
 
   return owner === null ? null : await archive.providerNumbers().providerSenderId(discordKey, owner);
 }
 
-// Who the agent is in this room: the avatar voice's number where the room is answered in it, the account
-// made for the agent where that account answers it, and the bot everywhere else.
-async function identityIn(archive: Store, discord: DiscordConfig, chatId: number): Promise<number | null> {
+// The voice a room is answered by, as the store wrote it down. Only a voice of the road's own accounts
+// answers a room.
+async function roomVoice(archive: Store, chatId: number): Promise<DiscordAccount["voice"] | null> {
   const voice = await archive.chats().roomVoice(discordKey, chatId);
 
-  if (voice === "human-avatar") {
-    return avatarIdentity(archive, discordKey);
-  }
+  return voice === "bot-account" || voice === "own-account" ? voice : null;
+}
 
+// Whether this room is the owner's private chat with the agent.
+function isOwnerRoom(chatId: number, ownerRoom: number | null): boolean {
+  return ownerRoom !== null && chatId === ownerRoom;
+}
+
+// Who the agent is in this room: the account made for the agent where that account answers it, and the bot
+// everywhere else.
+async function identityIn(archive: Store, discord: DiscordConfig, chatId: number): Promise<number | null> {
+  const voice = await roomVoice(archive, chatId);
   const account = (voice === "own-account" ? accountFor(discord, "own-account") : null)
     ?? accountFor(discord, "bot-account")
     ?? accountFor(discord, "own-account");
@@ -151,7 +143,7 @@ async function learnDirect(road: DiscordRoad, chatId: number, channelId: string)
     const recipient = await directRecipient(road.account, channelId);
 
     if (recipient !== null) {
-      const person = recipient === ownerAccountId(road.discord)
+      const person = recipient === road.discord.ownerUserId
         ? await ownerNumber(road.archive, road.discord)
         : await road.archive.providerNumbers().providerSenderId(discordKey, recipient);
 
@@ -181,9 +173,6 @@ async function hand(archive: Store, service: Service, kept: KeptMessage): Promis
 // One gateway message, turned into the message the store keeps and handed to the service.
 // - The agent's own words come back down every socket in the room, and they are kept rather than
 //   answered.
-// - The owner's account is read through the avatar contract: what carries the prefix is the agent's, the
-//   rest is the owner's. In a room another account of this road is in, the owner's socket only keeps what
-//   it reads, since that account is the one that answers there.
 // - A message two sockets both deliver is one snowflake and one number, and it is handed on once.
 export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMessage): Promise<void> {
   const { archive, discord, service, account } = road;
@@ -194,12 +183,10 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
     return;
   }
 
-  const person = account.voice === "human-avatar";
-
-  await heardInRoom(archive, discordKey, chatId, account.voice);
+  await archive.chats().setRoomVoice(discordKey, chatId, account.voice);
 
   const own = message.authorId !== "" && agentAccountIds(discord).includes(message.authorId);
-  const fromOwner = message.authorId !== "" && message.authorId === ownerAccountId(discord);
+  const fromOwner = message.authorId !== "" && message.authorId === discord.ownerUserId;
   const senderId = fromOwner
     ? await ownerNumber(archive, discord)
     : await archive.providerNumbers().providerSenderId(discordKey, message.authorId);
@@ -246,48 +233,8 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
     return;
   }
 
-  if (!person && message.guildId === null) {
+  if (message.guildId === null) {
     await learnDirect(road, chatId, message.channelId);
-  }
-
-  if (person) {
-    if (fromOwner) {
-      const read = await readAvatarMessage(
-        {
-          archive,
-          provider: discordKey,
-          ownerId: senderId,
-          identity,
-        },
-        kept,
-      );
-
-      if (read.own) {
-        if (message.kind === "edited") {
-          await service.handOver(read.kept.chatId, read.kept.messageId, read.kept.message);
-        }
-
-        return;
-      }
-
-      kept = read.kept;
-    }
-
-    // Read beside the account that answers the room, so it goes in as read through a reader.
-    if (!await answersAsAvatar(archive, discordKey, chatId)) {
-      const read = {
-        ...kept,
-        message: { ...kept.message, mode: "human-reader" as const },
-      };
-
-      if (message.kind === "edited") {
-        await service.handOver(read.chatId, read.messageId, read.message);
-      } else {
-        await archive.messages().insertMessageIfAbsent(read);
-      }
-
-      return;
-    }
   }
 
   // What the provider already knows of the room travels with the hand-over, so the receiver need not ask.
@@ -296,9 +243,9 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
     message: {
       ...kept.message,
       room: {
-        kind: await isOwnerRoomOf(archive, discordKey, chatId, await discordProvider.ownerRoom()) ? "owner" : "group",
+        kind: isOwnerRoom(chatId, await discordProvider.ownerRoom()) ? "owner" : "group",
         identity,
-        privateTo: await privateRoomOfRoad(archive, discordKey, chatId),
+        privateTo: await archive.chats().privateRoomPerson(discordKey, chatId),
       },
     },
   };
@@ -392,8 +339,8 @@ export const discordProvider: DiscordProvider = {
       id: chatId,
       owns: true,
       identity: await identityIn(archive, discord, chatId),
-      kind: await isOwnerRoomOf(archive, discordKey, chatId, await discordProvider.ownerRoom()) ? "owner" : "group",
-      privateTo: await privateRoomOfRoad(archive, discordKey, chatId),
+      kind: isOwnerRoom(chatId, await discordProvider.ownerRoom()) ? "owner" : "group",
+      privateTo: await archive.chats().privateRoomPerson(discordKey, chatId),
       title: await roomTitle(channel),
     };
   },
@@ -430,59 +377,55 @@ export const discordProvider: DiscordProvider = {
       throw platformRefusal(`There is no room ${request.roomId}.`);
     }
 
-    // The voice this send speaks with — the one it names, else the room's — and the account that
-    // voice is. In the avatar voice every word goes out behind the prefix: the one the send names, or the
-    // deployment's own; without either, that voice has no account to speak with.
-    const recorded = await archive.chats().roomVoice(discordKey, request.roomId) as ChatVoice | null;
-    const voice = await sendVoice(archive, discordKey, request, recorded ?? discordAccounts(discord)[0]?.voice ?? "bot-account");
-    const prefix = request.prefix ?? avatarPrefix();
-    const prefixMissing = voice === "human-avatar" && prefix === null;
-    const account = prefixMissing ? null : accountFor(discord, voice);
+    // The voice this send speaks with — the one it names, else the room's — and the account that voice is.
+    // A voice on a person's account has none, and neither has a voice whose token is missing.
+    const voice = request.mode
+      ?? await roomVoice(archive, request.roomId)
+      ?? discordAccounts(discord)[0]?.voice
+      ?? "bot-account";
+    const account = accountFor(discord, voice);
 
     if (account === null) {
-      const why = prefixMissing ? avatarPrefixMissing : voiceMissing(voice);
-
-      throw platformRefusal(`That account cannot send: ${why}.`);
+      throw platformRefusal(`That account cannot send: ${voiceMissing(voice)}.`);
     }
 
     const api = { token: account.token, bot: account.bot };
-    const spoken = inVoice(request, voice, prefix);
     // Every kind that points at a message points at one of the store's numbers, and what goes out has to
     // name the platform's own.
     const nativeOf = async (messageId: number): Promise<string | null> =>
       archive.messages().nativeMessageId(discordKey, request.roomId, messageId);
 
-    if (spoken.kind === "typing") {
-      if (spoken.fields.on) {
+    if (request.kind === "typing") {
+      if (request.fields.on) {
         await typing(api, channelId);
       }
 
       return { messageId: null, missed: [] };
     }
 
-    if (spoken.kind === "reaction" || spoken.kind === "pin" || spoken.kind === "edit") {
-      const native = await nativeOf(spoken.fields.messageId);
+    if (request.kind === "reaction" || request.kind === "pin" || request.kind === "edit") {
+      const native = await nativeOf(request.fields.messageId);
 
       if (native === null) {
-        throw platformRefusal(`There is no message ${spoken.fields.messageId}.`);
+        throw platformRefusal(`There is no message ${request.fields.messageId}.`);
       }
 
-      if (spoken.kind === "reaction") {
+      if (request.kind === "reaction") {
         // An empty emoji takes the agent's own reaction off, which is the same path the other way.
-        await react(api, channelId, native, spoken.fields.emoji, spoken.fields.emoji !== "");
-      } else if (spoken.kind === "pin") {
-        await pin(api, channelId, native, spoken.fields.on);
+        await react(api, channelId, native, request.fields.emoji, request.fields.emoji !== "");
+      } else if (request.kind === "pin") {
+        await pin(api, channelId, native, request.fields.on);
       } else {
-        await editMessage(api, channelId, native, spoken.fields.text);
+        await editMessage(api, channelId, native, request.fields.text);
       }
 
-      return { messageId: spoken.fields.messageId, missed: [] };
+      return { messageId: request.fields.messageId, missed: [] };
     }
 
     const replyTo = request.replyToMessageId === undefined || request.replyToMessageId === null
       ? null
       : await nativeOf(request.replyToMessageId);
-    const sent = await outgoing(api, channelId, discord, spoken, replyTo);
+    const sent = await outgoing(api, channelId, discord, request, replyTo);
 
     if (sent.id === null) {
       return { messageId: null, missed: [] };
@@ -492,48 +435,9 @@ export const discordProvider: DiscordProvider = {
     // gateway a moment later and is kept there, under this same number.
     const messageId = await archive.messages().assignMessageId(discordKey, request.roomId, sent.id);
 
-    // In the avatar voice the echo comes back under the owner's account, and a send that carried no
-    // words — a sticker, a file — comes back without the prefix that would say it is the agent's. It is
-    // kept as it goes, so the echo finds the agent's message standing and is read as the agent's.
-    if (voice === "human-avatar") {
-      const senderId = await identityIn(archive, discord, request.roomId) ?? await avatarIdentity(archive, discordKey);
-      const handed: HandedMessage = {
-        origin: "live",
-        senderId,
-        senderName: senderName(),
-        sentAt: Date.now(),
-        text: wordsSent(spoken),
-        replyToMessageId: request.replyToMessageId ?? null,
-        via: discordKey,
-        album: null,
-        mode: voice,
-        context: {},
-        room: {},
-        files: [],
-        gathering: false,
-      };
-
-      await archive.messages().insertMessageIfAbsent({ chatId: request.roomId, messageId, message: handed });
-    }
-
     return { messageId, missed: [] };
   },
 };
-
-// What a send leaves in the record, in the words its echo would.
-function wordsSent(request: ChatSendRequest): string {
-  switch (request.kind) {
-    case "text":
-    case "edit":
-      return stripAvatarPrefix(request.fields.text);
-    case "photo":
-      return stripAvatarPrefix(request.fields.caption ?? "") || discordWords.picture_mark;
-    case "document":
-      return fillMarks(discordWords.document_kept, { name: request.fields.fileName });
-    default:
-      return "";
-  }
-}
 
 // The one call a send of words, a picture, a file or a sticker turns into. A sticker this application has
 // not been given an id for is refused by name rather than sent as nothing.

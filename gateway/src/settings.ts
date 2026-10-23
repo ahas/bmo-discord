@@ -13,7 +13,7 @@ export interface NumberRange {
 
 export interface DiscordPolicy {
   can: string[];
-  unpinned: string[];
+  person_accounts: string;
   numbering: { rooms: NumberRange; people: NumberRange };
 }
 
@@ -53,14 +53,6 @@ function requiredSetting(name: string): string {
   }
 
   return written;
-}
-
-export const avatarPrefixMissing = "BMO_DISCORD_AVATAR_PREFIX not set";
-
-// What the agent's words begin with in a person's account, or null where none is set and the avatar voice
-// does not stand.
-export function avatarPrefixSetting(): string | null {
-  return setting("BMO_DISCORD_AVATAR_PREFIX");
 }
 
 // The name the agent's own words are handed over under.

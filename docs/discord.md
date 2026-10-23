@@ -15,10 +15,9 @@ is set up and what it can do.
   rather than reconnecting for ever. An application in more than a hundred servers is reviewed before it is
   granted.
 - **The bot invited into a guild**, with permission to read and send in the channels it is meant to be in.
-- **For the modes on a person's account, that account's user token.** The owner's own token carries the
-  reader and the avatar modes; the token of an account made for the agent carries the mode where the account
-  is the agent's own. A user token needs no application, no intent and no invitation: the account reads
-  whatever rooms it is already in.
+- **For the mode where the account is the agent's own, that account's user token.** A user token needs no
+  application, no intent and no invitation: the account reads whatever rooms it is already in. No mode runs on
+  the owner's own account (「The declaration」).
 
 ## The declaration
 
@@ -26,25 +25,33 @@ is set up and what it can do.
 |---|---|
 | `key` | `discord` |
 | `label` | the platform's name in this repository's language pack, `lang/ko.toml` |
-| `configured` | null where at least one of the three tokens is set, else the sentence naming all three |
+| `configured` | null where at least one of the two tokens is set, else the sentence naming both |
 | `can` | `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing`, `edit`, as `policy/discord.toml` lists them |
 | `dialect` | `discord-markdown` (「The dialect」) |
 | `shows` | null |
 | `numbering` | `assigned` for rooms, people and messages, with the rooms' and people's ranges declared (「Numbering」) |
 | `speakers` | false |
 
-The modes, each standing on its own setting. The service reads the settings as it starts, so a token put in
-place stands its mode up with the next start; the gateway reads them each time it opens a socket or sends:
+The modes. The two on accounts of the provider's own each stand on their own setting: the service reads the
+settings as it starts, so a token put in place stands its mode up with the next start, and the gateway reads
+them each time it opens a socket or sends. The two on a person's account stand on nothing:
 
-| Voice | Reach | Active when | `canReplyTo` |
+| Voice | Reach | Standing | `canReplyTo` |
 |---|---|---|---|
-| `bot-account` | `all-messages` | `BMO_DISCORD_TOKEN` is set | true |
-| `human-reader` | `all-messages` | `BMO_DISCORD_USER_TOKEN` is set | false |
-| `human-avatar` | `all-messages` | `BMO_DISCORD_USER_TOKEN` and `BMO_DISCORD_AVATAR_PREFIX` are set | true |
-| `own-account` | `all-messages` | `BMO_DISCORD_SELF_TOKEN` is set | true |
+| `bot-account` | `all-messages` | active when `BMO_DISCORD_TOKEN` is set | true |
+| `human-reader` | `all-messages` | `unsupported` | false |
+| `human-avatar` | `all-messages` | `unsupported` | false |
+| `own-account` | `all-messages` | active when `BMO_DISCORD_SELF_TOKEN` is set | true |
 
-An inactive mode's reason names the setting it is missing. The reader's answers are never pinned to a message
-it delivered, which `policy/discord.toml` keeps as the voices whose answers go out unpinned.
+An inactive mode's reason names the setting it is missing.
+
+- **The modes on a person's account are `unsupported`.** Discord's terms forbid automating a user account,
+  and the reason both modes carry is the terms' own words, as `policy/discord.toml` holds them. No setting
+  makes either active: the provider holds no token of the owner's own account, never reads a room through it
+  and never answers in it. Neither mode delivers a message, so neither has one an answer could be pinned to.
+- **The rooms of the account are not listed.** The provider declares no `roomList`: the bot account cannot ask
+  the platform for the one-to-one channels it is in, and the channels a guild answers with include those the
+  bot cannot read, so no list the platform gives is the rooms the account is in.
 
 ## The sockets
 
@@ -65,40 +72,13 @@ it delivered, which `policy/discord.toml` keeps as the voices whose answers go o
 
 ## Which account answers a room
 
-- **It follows which accounts are in it.** A room the bot account is in is answered by the bot; the owner's
-  account only reads it beside the bot, and its replies go out unpinned. A room only the owner's account is in
-  is answered in the avatar voice. A room the agent's own account is in is answered by that account, with no
-  prefix.
-- **What the provider has heard in a room is written down per room.** A voice that answers where it reaches,
-  the bot account or the agent's own account, is written over whatever stood; the avatar voice is written only
-  where nothing stands, so a room another account is in stays that account's.
+- **It follows which accounts are in it.** A room the bot account is in is answered by the bot, and a room the
+  agent's own account is in by that account, with no prefix.
+- **What the provider has heard in a room is written down per room.** The voice of the socket that heard the
+  room last is written over whatever stood.
 - **A send speaks with the voice it names**, or with the voice the room is answered by. A voice whose token is
-  missing is refused, naming what is missing.
-
-## The avatar voice
-
-The account is a person's, so the agent's words and the owner's come in under the same platform account. Only
-the prefix tells them apart, which is why everything the agent puts out in that voice carries it and why a
-message carrying it is never read as the owner's.
-
-- **A send may name its prefix.** The protocol's send carries `prefix`, and that is what a send in the avatar
-  voice puts before its words; the deployment's `BMO_DISCORD_AVATAR_PREFIX` stands where the send names none.
-- **The deployment's prefix is configuration**, written from the agent's registration; the provider holds no
-  agent's name. It is also what the provider reads a message back by, so the agent's own words are recognised.
-  While it is unset the avatar mode is inactive.
-- **Everything the agent puts out in that voice carries the prefix**: a text, each part of a split one since
-  each is a message of its own, a caption, which is written as the prefix alone where there was none so the
-  echo is still recognised, and an edit of its own message. Words that already carry it go as they are.
-- **A message read back with the prefix is the agent's own.** A platform may trim the space after the colon,
-  so the colon is where the mark ends. The words are handed over without the prefix, under the avatar voice's
-  own number and the agent's sender name, and wake nobody. So is a message already numbered under the avatar
-  voice's number, which is a send that carried no words.
-- **Everything else from that account is the owner's own words**, handed over under the owner's number like
-  any message.
-- **The avatar voice's number** is a person of this provider's own numbering, never the owner's, although the
-  platform account is the owner's: the receiver tells the agent's words from the owner's by it.
-- **A room answered in the avatar voice is nobody's one-to-one** and never the owner's room: a one-to-one of
-  the owner's there is with somebody else.
+  missing is refused, naming what is missing, and a voice on a person's account is refused with the terms'
+  words.
 
 ## What a Discord room can do
 
@@ -142,8 +122,7 @@ message carrying it is never read as the owner's.
   second socket reading it finds it there; a hand-over that fails takes the mark off again.
 - **A DM channel is a one-to-one with the agent.** A message with no guild sends the gateway to ask the
   platform for the channel, once a run for each such channel, and a channel whose type is a DM writes down
-  its recipient as the person it is with. A group DM, a guild channel and a room answered in the avatar voice
-  are nobody's.
+  its recipient as the person it is with. A group DM and a guild channel are nobody's.
 - **The owner's words** are filed under the person numbered for `BMO_DISCORD_OWNER_ID`.
 
 ## What a message carries
@@ -168,12 +147,13 @@ Every refusal is a bmo-chat refusal code with its English sentence, answered wit
 |---|---|---|
 | no token is set | `not-ready` | |
 | a room this provider has not numbered | `platform` | "There is no room {room}." |
-| a voice whose token or prefix is missing | `platform` | "That account cannot send: {why}." |
+| a voice whose token is missing, or a voice on a person's account | `platform` | "That account cannot send: {why}." |
 | an edit, a reaction or a pin of a message this provider has not numbered | `platform` | "There is no message {message}." |
 | a sticker the pairing does not hold | `platform` | "No sticker is paired with {emoji}." |
 | a send the declaration does not carry | `unsupported-capability` | |
 
 ## Tests
 
-Tests are deferred: this repository holds none yet, and no Discord test account is connected, so nothing here
-has been tried against a live Discord server.
+The declaration test holds the modes and the capabilities the service declares, whatever tokens are set. The
+behaviour tests are deferred: no Discord test account is connected, so nothing here has been tried against a
+live Discord server.

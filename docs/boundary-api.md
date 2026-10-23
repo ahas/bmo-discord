@@ -53,11 +53,7 @@ What the provider hands over:
 - **A message two accounts both see is handed over once.** Its snowflake is the same on every socket, so the
   first socket to read it hands it over and the others find it already handed over.
 - **The agent's own words come back down the socket** like everybody else's. They are handed over under the
-  agent's number in that room, and the receiving side keeps them and wakes nobody for them. A send in the
-  avatar voice that carried no words of its own is handed over the same way once it is made.
-- **A message the owner's account reads in a room another account answers** is handed over with the mode
-  `human-reader`, whichever socket reads it first, so the receiving side takes it as read through a reader and
-  aims no answer at it.
+  agent's number in that room, and the receiving side keeps them and wakes nobody for them.
 - **A file is a mark.** A picture is handed over as the picture mark and any other file as the file mark
   naming it (`lang/ko.toml`); no bytes cross, and the provider declares no `fetchMedia`.
 - **Room facts travel with the hand-over.** `room.kind`, `room.identity` and `room.privateTo` carry what the
@@ -103,14 +99,15 @@ The platform's own, kept as they have always been named:
 | Variable | Read by | Meaning |
 |---|---|---|
 | `BMO_DISCORD_TOKEN` | both | the application's bot token; the `bot-account` mode is inactive without it |
-| `BMO_DISCORD_USER_TOKEN` | both | the owner's own user token; the `human-reader` and `human-avatar` modes are inactive without it |
 | `BMO_DISCORD_SELF_TOKEN` | both | the user token of an account that belongs to the agent; the `own-account` mode is inactive without it |
 | `BMO_DISCORD_OWNER_ID` | gateway | the owner's Discord account id, so the owner's words are filed under the owner's number |
 | `BMO_DISCORD_OWNER_CHANNEL` | gateway | the DM channel that is the owner's one-to-one with the agent; a channel says it is a DM, never whose |
 | `BMO_DISCORD_STICKERS` | gateway | the agent's stickers as `emoji:id` pairs separated by commas; a sticker asked for by an emoji not paired is refused |
 
-With none of the three tokens set the provider is not configured and says so; each mode stands or stays down on
-its own token.
+With neither token set the provider is not configured and says so; each of the two modes stands or stays down
+on its own token. No setting stands up the `human-reader` or `human-avatar` mode: both are declared
+`unsupported` (`docs/discord.md`, 「The declaration」), and the provider reads no token of the owner's own
+account.
 
 This provider's own:
 
@@ -122,7 +119,6 @@ This provider's own:
 | `BMO_DISCORD_RECEIVER_URL` | service | the receiving side's base address; required |
 | `BMO_DISCORD_RECEIVER_TOKEN` | service | the token the receiving side's routes take; required |
 | `BMO_DISCORD_DATA` | gateway | the provider's own data folder, inside no checkout; it holds the number store. Required |
-| `BMO_DISCORD_AVATAR_PREFIX` | both | the prefix the deployment writes from the agent's registration, used to recognise the agent's words read back and, where a send names none, before the words it sends; the `human-avatar` mode is inactive while it is unset |
 | `BMO_DISCORD_SENDER_NAME` | gateway | the name the agent's own words are handed over under |
 | `BMO_DISCORD_CLIENT_NAME` | gateway | the client name the bot account's socket identifies itself with to Discord |
 

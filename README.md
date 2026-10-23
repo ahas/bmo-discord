@@ -2,13 +2,14 @@
 
 The Discord chat provider, `bmo-discord`. It is Discord to the chat receiver, through the chat protocol of the
 base library `bmo-chat`: it declares its read modes, what it can do and the dialect its rooms read, reads its
-rooms through the bot account, the owner's account and an account of the agent's own, sends the verbs it
-declares, and hands what its rooms say to the receiver.
+rooms through the bot account and an account of the agent's own, sends the verbs it declares, and hands what
+its rooms say to the receiver.
 
 ## Tests and the test account
 
 - **The behaviour tests are deferred.** This phase moves the code only; the suite holds the repository-wide
-  personal-data check.
+  personal-data check and the declaration test.
+- **The declaration test** holds the modes and the capabilities the service declares, whatever tokens are set.
 - **The personal-data check reads every tracked file** for a mail address, a home path, a telephone number, a
   token and a private network address, and names the file, the line and the kind of each finding
   (`PERSONAL-DATA.md`).
@@ -20,11 +21,11 @@ declares, and hands what its rooms say to the receiver.
 |---|---|
 | `src/` | the service's own package: the declaration, the `discord-markdown` dialect, the protocol's routes, the receiver link and the generated client of the gateway (`seam.rs`) |
 | `gateway/` | the gateway, a bun package holding the Discord accounts' sockets, the REST calls, the provider's number store and the generated client of the service (`seam.ts`) |
-| `policy/` | the provider's fixed values: its capabilities, the voices whose answers go out unpinned, the ranges its numbers fall in, and its dialect's limit and writing sentence |
+| `policy/` | the provider's fixed values: its capabilities, the terms' words the modes on a person's account are declared unsupported with, the ranges its numbers fall in, and its dialect's limit and writing sentence |
 | `lang/` | the words a person reads that this provider draws: the platform's label and the marks a message is handed over with |
 | `tools/` | `generate.ts`, which writes both clients from `docs/openapi.json` |
 | `deploy/` | the two service units a deployment links: the Rust service and the bun gateway |
-| `tests/` | the repository's checks: the personal-data check over every tracked file |
+| `tests/` | the repository's checks: the personal-data check over every tracked file, and the declaration test |
 | `docs/` | the canonical statements of what the provider does |
 | `.graph/` | this repository's code graph, written only by `bmo-graph`. Its area files are generated in the checkout and untracked, so a fresh checkout builds them again, while `settings.toml` is the repository's configuration and stays tracked |
 
@@ -40,7 +41,7 @@ values), `PERSONAL-DATA.md` (what personal data may never stand here), `rustfmt.
 | `docs/api.md` | The provider's fixed API: the wire format, the resources, the routes and the codes |
 | `docs/openapi.json` | The same API in OpenAPI 3.1, from which both clients are generated |
 | `docs/boundary-api.md` | The boundary: the routes served, the calls made on the receiving side, the seam between the service and the gateway, the configuration and the clients |
-| `docs/discord.md` | The provider: its declaration, the sockets, which account answers a room, the avatar voice, the verbs, the dialect, the numbering and the refusals |
+| `docs/discord.md` | The provider: its declaration, the sockets, which account answers a room, the verbs, the dialect, the numbering and the refusals |
 | `PERSONAL-DATA.md` | What personal data may never stand here, and the check that holds it |
 
 ## Version
