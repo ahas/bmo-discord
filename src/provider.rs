@@ -21,8 +21,6 @@ use crate::seam::{Gateway, GatewayFailure};
 pub const KEY: &str = "discord";
 
 const BOT_TOKEN_MISSING: &str = "BMO_DISCORD_TOKEN not set";
-const SELF_TOKEN_MISSING: &str = "BMO_DISCORD_SELF_TOKEN not set";
-const DISCORD_MISSING: &str = "neither BMO_DISCORD_TOKEN nor BMO_DISCORD_SELF_TOKEN is set";
 
 /// How often the gateway is asked whether it is ready.
 const HEALTH_EVERY: Duration = Duration::from_secs(5);
@@ -50,11 +48,11 @@ impl DiscordProvider {
     }
   }
 
-  /// A mode on an account of the provider's own, which stands on its token: active where the token is set,
-  /// and waiting on it, said by name, where it is not. An answer can be pinned to what it delivered.
-  fn mode(voice: ChatVoice, missing: Option<&str>) -> ChatReadMode {
+  /// The mode on the bot account, which stands on its token: active where the token is set, and waiting on
+  /// it, said by name, where it is not. An answer can be pinned to what it delivered.
+  fn bot_mode(missing: Option<&str>) -> ChatReadMode {
     ChatReadMode {
-      voice,
+      voice: ChatVoice::BotAccount,
       reach: ChatReach::AllMessages,
       standing: if missing.is_none() { ChatModeStanding::Active } else { ChatModeStanding::Inactive },
       reason: missing.map(str::to_owned),
@@ -62,14 +60,15 @@ impl DiscordProvider {
     }
   }
 
-  /// A mode on a person's account, which Discord's terms forbid automating: unsupported whatever is set,
-  /// with the terms' words as its reason. It delivers nothing, so nothing of it can be answered pinned.
-  fn person_mode(voice: ChatVoice) -> ChatReadMode {
+  /// A mode on a user account, the owner's or one made for the agent, which Discord's terms forbid
+  /// automating: unsupported whatever is set, with the terms' words as its reason. It delivers nothing, so
+  /// nothing of it can be answered pinned.
+  fn user_account_mode(voice: ChatVoice) -> ChatReadMode {
     ChatReadMode {
       voice,
       reach: ChatReach::AllMessages,
       standing: ChatModeStanding::Unsupported,
-      reason: Some(POLICY.person_accounts.clone()),
+      reason: Some(POLICY.user_accounts.clone()),
       can_reply_to: false,
     }
   }
@@ -180,9 +179,7 @@ impl ChatProvider for DiscordProvider {
   }
 
   fn configured(&self) -> Option<String> {
-    let any = self.config.bot_token || self.config.self_token;
-
-    (!any).then(|| DISCORD_MISSING.to_owned())
+    (!self.config.bot_token).then(|| BOT_TOKEN_MISSING.to_owned())
   }
 
   /// The gateway reads the rooms; the service only keeps asking it whether it is ready.
@@ -238,21 +235,19 @@ impl ChatProvider for DiscordProvider {
     )
   }
 
-  /// Each mode on an account of the provider's own stands on its own setting, read as the service starts;
-  /// the modes on a person's account stand on none.
+  /// The bot account's mode stands on its token, read as the service starts; the modes on a user account
+  /// stand on nothing.
   fn modes(&self) -> Vec<ChatReadMode> {
-    let config = &self.config;
-
     vec![
       // The official bot account, delivered a room's every message. What it needs besides the token is the
       // MESSAGE_CONTENT intent, which is privileged: an application that has not been given it is refused at
       // the gateway rather than quietly handed empty messages.
-      Self::mode(ChatVoice::BotAccount, (!config.bot_token).then_some(BOT_TOKEN_MISSING)),
-      // The owner's own account, read and answered in: the platform's terms forbid automating it.
-      Self::person_mode(ChatVoice::HumanReader),
-      Self::person_mode(ChatVoice::HumanAvatar),
-      // An account made for the agent, answering as the agent with no prefix.
-      Self::mode(ChatVoice::OwnAccount, (!config.self_token).then_some(SELF_TOKEN_MISSING)),
+      Self::bot_mode((!self.config.bot_token).then_some(BOT_TOKEN_MISSING)),
+      // The owner's own account, read and answered in, and an account made for the agent: the platform's
+      // terms forbid automating either.
+      Self::user_account_mode(ChatVoice::HumanReader),
+      Self::user_account_mode(ChatVoice::HumanAvatar),
+      Self::user_account_mode(ChatVoice::OwnAccount),
     ]
   }
 

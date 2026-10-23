@@ -34,13 +34,12 @@ interface Session {
 
 // One socket, kept open, for one account. `hand` is given every message the gateway dispatches;
 // what it does with one is the provider's business and a failure in it never takes the socket
-// down. `bot` says whether the token is an application's, which is how the identify is written and
-// whether an intent refusal can arrive at all.
+// down. The token is the application's bot token, the one account the road listens as.
 export function openGateway(
-  account: { token: string; bot: boolean },
+  account: { token: string },
   hand: (message: DiscordMessage) => void,
 ): DiscordSocket {
-  const { token, bot } = account;
+  const { token } = account;
   let socket: WebSocket | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let session: Session | null = null;
@@ -83,7 +82,7 @@ export function openGateway(
         beat(every);
         // A session this road still holds is taken up where it left off; without one it says who
         // it is and starts a new one.
-        opening.send(session === null ? identifyFrame(token, bot) : resumeFrame(token, session.id, seq));
+        opening.send(session === null ? identifyFrame(token) : resumeFrame(token, session.id, seq));
 
         return;
       }
@@ -107,7 +106,7 @@ export function openGateway(
         session = ready?.session_id === undefined
           ? null
           : { id: ready.session_id, resumeUrl: `${ready.resume_gateway_url ?? gatewayUrl}/?v=10&encoding=json` };
-        console.log(`discord: gateway session open (${bot ? "bot account" : "person's account"})`);
+        console.log("discord: gateway session open (bot account)");
 
         return;
       }
@@ -129,9 +128,8 @@ export function openGateway(
       heartbeat = null;
 
       // An intent the application has not been given is not a blip: trying again does the same
-      // thing for ever, so the road says which one and stands down. A person's account asks for no
-      // intent and is never sent this.
-      if (bot && event.code === disallowedIntentsClose) {
+      // thing for ever, so the road says which one and stands down.
+      if (event.code === disallowedIntentsClose) {
         stopped = true;
         console.error(
           "discord: the gateway refused the connection because a privileged intent is not enabled — turn MESSAGE_CONTENT on for this application in the developer portal",

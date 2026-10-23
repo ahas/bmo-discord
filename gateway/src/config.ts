@@ -10,10 +10,7 @@ export interface DiscordConfig {
   // The bot token of the application, which the bot account mode runs on. A token is the whole of
   // what the gateway and the REST side authenticate with, and none is ever written into a log or
   // an answer.
-  token: string | null;
-  // The user token of an account made for the agent, which the mode where the account is the agent's own
-  // runs on.
-  selfToken: string | null;
+  token: string;
   // The owner's own Discord account, so the owner's words here are filed under the owner's number.
   ownerUserId: string | null;
   // The channel that is the owner's one-to-one with the agent — a DM channel — where there is one. A
@@ -42,58 +39,51 @@ export function parseStickers(written: string | undefined): Record<string, strin
 }
 
 export const botTokenMissing = "BMO_DISCORD_TOKEN not set";
-export const selfTokenMissing = "BMO_DISCORD_SELF_TOKEN not set";
-export const discordMissing = "neither BMO_DISCORD_TOKEN nor BMO_DISCORD_SELF_TOKEN is set";
 
 function tokenOf(written: string | undefined): string | null {
   return written === undefined || written === "" ? null : written;
 }
 
-// Null where no account at all is configured; each mode then stands on its own token.
+// Null where the bot token is not set, which is the one account the road runs on.
 export function discordConfig(env: NodeJS.ProcessEnv = process.env): DiscordConfig | null {
   const token = tokenOf(env.BMO_DISCORD_TOKEN);
-  const selfToken = tokenOf(env.BMO_DISCORD_SELF_TOKEN);
 
-  if (token === null && selfToken === null) {
+  if (token === null) {
     return null;
   }
 
   return {
     token,
-    selfToken,
     ownerUserId: env.BMO_DISCORD_OWNER_ID ?? null,
     ownerChannelId: env.BMO_DISCORD_OWNER_CHANNEL ?? null,
     stickers: parseStickers(env.BMO_DISCORD_STICKERS),
   };
 }
 
-// One account this road holds a socket for: its token, whether it is an application's bot or a user
-// account — which is how a request and an identify are written — and the voice it speaks with. Both are the
-// road's own; Discord's terms forbid automating a person's account, so the owner's is never one of them.
+// The one account this road holds a socket for: the application's bot, and the voice it speaks with.
+// Discord's terms forbid automating a user account, the owner's or one made for the agent, so the road
+// holds no user token at all.
 export interface DiscordAccount {
   token: string;
-  bot: boolean;
-  voice: Extract<ChatVoice, "bot-account" | "own-account">;
+  voice: Extract<ChatVoice, "bot-account">;
 }
 
-export function discordAccounts(discord: DiscordConfig): DiscordAccount[] {
-  return [
-    ...(discord.token === null ? [] : [{ token: discord.token, bot: true, voice: "bot-account" as const }]),
-    ...(discord.selfToken === null ? [] : [{ token: discord.selfToken, bot: false, voice: "own-account" as const }]),
-  ];
+export function botAccount(discord: DiscordConfig): DiscordAccount {
+  return { token: discord.token, voice: "bot-account" };
 }
 
 // The account a voice speaks with, or null where the road holds none for it.
 export function accountFor(discord: DiscordConfig, voice: ChatVoice): DiscordAccount | null {
-  return discordAccounts(discord).find((account) => account.voice === voice) ?? null;
+  return voice === "bot-account" ? botAccount(discord) : null;
 }
 
 // Why a voice has no account, in the words a refusal carries, which closes them with its own full stop: the
-// token it is missing, the platform's terms for a voice on a person's account, and no platform for the rest.
+// platform's terms for a voice on a user account, and no platform for the rest. The bot account always has
+// one, since the road runs only where its token is set.
 export function voiceMissing(voice: ChatVoice): string {
-  if (voice === "bot-account") return botTokenMissing;
-  if (voice === "own-account") return selfTokenMissing;
-  if (voice === "human-reader" || voice === "human-avatar") return discordPolicy.person_accounts.replace(/\.$/, "");
+  if (voice === "human-reader" || voice === "human-avatar" || voice === "own-account") {
+    return discordPolicy.user_accounts.replace(/\.$/, "");
+  }
 
   return `Discord has no ${voice} account`;
 }

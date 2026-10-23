@@ -10,7 +10,7 @@ The provider is two processes of one repository:
 - **the service**, the Rust package at the root. It is the chat provider bmo-chat's contract describes: it
   declares the provider, runs the `discord-markdown` dialect, serves the protocol's provider routes and hands
   what its rooms say to the receiver. It is the only process another unit talks to.
-- **the gateway**, the bun package in `gateway/`. It holds the Discord accounts' gateway sockets and makes
+- **the gateway**, the bun package in `gateway/`. It holds the bot account's gateway socket and makes
   every REST call to Discord: it reads the rooms, performs the sends, answers the room questions and keeps the
   provider's own numbers (`docs/discord.md`, 「Numbering」). Only the service calls it, over the loopback.
 
@@ -20,7 +20,7 @@ flowchart LR
   S -->|PUT rooms messages| Rx
   S -->|seam: health, sends, rooms, owner| G[gateway]
   G -->|seam: message hand-over| S
-  G -->|gateway sockets, REST| DC[Discord]
+  G -->|gateway socket, REST| DC[Discord]
 ```
 
 ## Routes served
@@ -50,8 +50,8 @@ Every hand-over goes through bmo-chat's receiver link to `BMO_DISCORD_RECEIVER_U
 
 What the provider hands over:
 
-- **A message two accounts both see is handed over once.** Its snowflake is the same on every socket, so the
-  first socket to read it hands it over and the others find it already handed over.
+- **A message is handed over once.** The store marks its snowflake as handed over, so a socket that reads it
+  again after a reconnect finds it already handed over.
 - **The agent's own words come back down the socket** like everybody else's. They are handed over under the
   agent's number in that room, and the receiving side keeps them and wakes nobody for them.
 - **A file is a mark.** A picture is handed over as the picture mark and any other file as the file mark
@@ -99,15 +99,14 @@ The platform's own, kept as they have always been named:
 | Variable | Read by | Meaning |
 |---|---|---|
 | `BMO_DISCORD_TOKEN` | both | the application's bot token; the `bot-account` mode is inactive without it |
-| `BMO_DISCORD_SELF_TOKEN` | both | the user token of an account that belongs to the agent; the `own-account` mode is inactive without it |
 | `BMO_DISCORD_OWNER_ID` | gateway | the owner's Discord account id, so the owner's words are filed under the owner's number |
 | `BMO_DISCORD_OWNER_CHANNEL` | gateway | the DM channel that is the owner's one-to-one with the agent; a channel says it is a DM, never whose |
 | `BMO_DISCORD_STICKERS` | gateway | the agent's stickers as `emoji:id` pairs separated by commas; a sticker asked for by an emoji not paired is refused |
 
-With neither token set the provider is not configured and says so; each of the two modes stands or stays down
-on its own token. No setting stands up the `human-reader` or `human-avatar` mode: both are declared
-`unsupported` (`docs/discord.md`, 「The declaration」), and the provider reads no token of the owner's own
-account.
+Without `BMO_DISCORD_TOKEN` the provider is not configured and says so, and the `bot-account` mode stays down.
+No setting stands up the `human-reader`, `human-avatar` or `own-account` mode: all three are on a user account
+and declared `unsupported` (`docs/discord.md`, 「The declaration」), and the provider reads no user account's
+token.
 
 This provider's own:
 

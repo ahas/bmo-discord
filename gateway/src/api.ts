@@ -7,15 +7,13 @@
 const apiBase = "https://discord.com/api/v10";
 const requestTimeoutMs = 30_000;
 
-// Whose token a call carries. An application's bot token goes under the `Bot` scheme; a person's
-// token goes bare, as that person's own client sends it.
+// The token a call carries: the application's bot token, which goes under the `Bot` scheme.
 export interface DiscordCall {
   token: string;
-  bot: boolean;
 }
 
 export function authorization(api: DiscordCall): string {
-  return api.bot ? `Bot ${api.token}` : api.token;
+  return `Bot ${api.token}`;
 }
 
 async function call(

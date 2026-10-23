@@ -3,12 +3,11 @@
 // the agent itself said. The service declares the provider and runs its dialect; what stands here reads the
 // rooms, performs the sends and answers the room questions (docs/boundary-api.md).
 //
-// It reads by as many accounts as it is given tokens for, one socket each. The official bot account
-// is delivered a room's every message where the application has been given the MESSAGE_CONTENT
-// intent, which is privileged and asked for in the developer portal; without it the gateway refuses
-// the connection outright and says so (`gateway.ts`). An account made for the agent answers in its own
-// rooms as the agent, with no prefix. Discord's terms forbid automating a person's account, so the road
-// holds no token of the owner's own and never reads or answers through it.
+// It reads by one account, the official bot account, on one socket. The bot is delivered a room's every
+// message where the application has been given the MESSAGE_CONTENT intent, which is privileged and asked
+// for in the developer portal; without it the gateway refuses the connection outright and says so
+// (`gateway.ts`). Discord's terms forbid automating a user account, the owner's or one made for the agent,
+// so the road holds no user token and never reads or answers through one.
 //
 // Ids: a channel, a person and a message are all snowflakes — 64-bit numbers above what a number
 // holds exactly — so the store numbers all three itself and the platform's ids stay strings.
@@ -16,7 +15,7 @@
 import { chatMachine } from "./machine";
 import { discordPolicy, discordWords, fillMarks, senderName } from "./settings";
 import { channelName, directRecipient, editMessage, pin, react, sendFile, sendImage, sendMessage, sendSticker, typing } from "./api";
-import { accountFor, discordAccounts, discordConfig, discordMissing, voiceMissing } from "./config";
+import { accountFor, botAccount, botTokenMissing, discordConfig, voiceMissing } from "./config";
 import { openGateway } from "./gateway";
 import { Refusal, notReady, platformRefusal } from "./chat";
 
@@ -82,14 +81,10 @@ export interface DiscordRoad {
   account: DiscordAccount;
 }
 
-// The accounts that are the agent's own on this road: the bot, and the account made for the agent. What
-// either of them says is the agent's, whichever socket brings it back.
-function agentAccountIds(discord: DiscordConfig): string[] {
-  return [discord.token, discord.selfToken].flatMap((token) => {
-    const id = token === null ? null : accountIdFromToken(token);
-
-    return id === null ? [] : [id];
-  });
+// The account that is the agent's own on this road, the bot: what it says is the agent's when the socket
+// brings it back.
+function agentAccountId(discord: DiscordConfig): string | null {
+  return accountIdFromToken(discord.token);
 }
 
 // The number the owner's words are filed under: the person the store numbers for the owner's account, as
@@ -100,12 +95,12 @@ async function ownerNumber(archive: Store, discord: DiscordConfig): Promise<numb
   return owner === null ? null : await archive.providerNumbers().providerSenderId(discordKey, owner);
 }
 
-// The voice a room is answered by, as the store wrote it down. Only a voice of the road's own accounts
-// answers a room.
+// The voice a room is answered by, as the store wrote it down. Only the bot account's voice answers a room;
+// any other voice the store holds, `own-account` among them, counts as none.
 async function roomVoice(archive: Store, chatId: number): Promise<DiscordAccount["voice"] | null> {
   const voice = await archive.chats().roomVoice(discordKey, chatId);
 
-  return voice === "bot-account" || voice === "own-account" ? voice : null;
+  return voice === "bot-account" ? voice : null;
 }
 
 // Whether this room is the owner's private chat with the agent.
@@ -113,14 +108,9 @@ function isOwnerRoom(chatId: number, ownerRoom: number | null): boolean {
   return ownerRoom !== null && chatId === ownerRoom;
 }
 
-// Who the agent is in this room: the account made for the agent where that account answers it, and the bot
-// everywhere else.
-async function identityIn(archive: Store, discord: DiscordConfig, chatId: number): Promise<number | null> {
-  const voice = await roomVoice(archive, chatId);
-  const account = (voice === "own-account" ? accountFor(discord, "own-account") : null)
-    ?? accountFor(discord, "bot-account")
-    ?? accountFor(discord, "own-account");
-  const id = account === null ? null : accountIdFromToken(account.token);
+// Who the agent is in a room: the bot account, which answers every room.
+async function identityIn(archive: Store, discord: DiscordConfig): Promise<number | null> {
+  const id = agentAccountId(discord);
 
   return id === null ? null : await archive.providerNumbers().providerSenderId(discordKey, id);
 }
@@ -129,7 +119,7 @@ async function identityIn(archive: Store, discord: DiscordConfig, chatId: number
 // message said in it.
 const askedChannels = new Set<string>();
 
-// Whether a channel with no guild is a DM of the agent's own account, asked of the platform once a run,
+// Whether a channel with no guild is a DM of the bot account, asked of the platform once a run,
 // and its recipient written down as the person it is a one-to-one with. A call that fails is asked again
 // at the next message.
 async function learnDirect(road: DiscordRoad, chatId: number, channelId: string): Promise<void> {
@@ -155,8 +145,8 @@ async function learnDirect(road: DiscordRoad, chatId: number, channelId: string)
   }
 }
 
-// One message kept and handed to the service, marked first so the next socket that reads it finds it
-// already handed over. A hand-over that did not go takes the mark off again.
+// One message kept and handed to the service, marked first so a socket that reads it again after a
+// reconnect finds it already handed over. A hand-over that did not go takes the mark off again.
 async function hand(archive: Store, service: Service, kept: KeptMessage): Promise<void> {
   if (!archive.messages().markHandedOver(kept)) {
     return;
@@ -171,9 +161,8 @@ async function hand(archive: Store, service: Service, kept: KeptMessage): Promis
 }
 
 // One gateway message, turned into the message the store keeps and handed to the service.
-// - The agent's own words come back down every socket in the room, and they are kept rather than
-//   answered.
-// - A message two sockets both deliver is one snowflake and one number, and it is handed on once.
+// - The agent's own words come back down the socket, and they are kept rather than answered.
+// - A message delivered again after a reconnect is one snowflake and one number, and it is handed on once.
 export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMessage): Promise<void> {
   const { archive, discord, service, account } = road;
   const chatId = await archive.providerNumbers().providerChatId(discordKey, message.channelId, "");
@@ -185,12 +174,12 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
 
   await archive.chats().setRoomVoice(discordKey, chatId, account.voice);
 
-  const own = message.authorId !== "" && agentAccountIds(discord).includes(message.authorId);
+  const own = message.authorId !== "" && message.authorId === agentAccountId(discord);
   const fromOwner = message.authorId !== "" && message.authorId === discord.ownerUserId;
   const senderId = fromOwner
     ? await ownerNumber(archive, discord)
     : await archive.providerNumbers().providerSenderId(discordKey, message.authorId);
-  const identity = await identityIn(archive, discord, chatId);
+  const identity = await identityIn(archive, discord);
   const origin = message.kind === "edited" ? "edit" : "live";
   let kept: KeptMessage = {
     chatId,
@@ -259,7 +248,7 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
   await hand(archive, service, kept);
 }
 
-let sockets: DiscordSocket[] = [];
+let socket: DiscordSocket | null = null;
 
 // What the gateway's routes ask of the provider (docs/api.md, 「Rooms」, 「Sends」 and 「Health」).
 export interface DiscordProvider {
@@ -276,14 +265,13 @@ export interface DiscordProvider {
 // never its name, and a direct message has no name at all.
 async function roomTitle(channelId: string): Promise<string | null> {
   const discord = discordConfig();
-  const account = discord === null ? undefined : discordAccounts(discord)[0];
 
-  if (account === undefined) {
+  if (discord === null) {
     return null;
   }
 
   try {
-    return await channelName(account, channelId);
+    return await channelName(botAccount(discord), channelId);
   } catch (error) {
     console.error(`discord: could not read what channel ${channelId} is called:`, error);
 
@@ -293,7 +281,7 @@ async function roomTitle(channelId: string): Promise<string | null> {
 
 export const discordProvider: DiscordProvider = {
   key: discordKey,
-  configured: () => (discordConfig() === null ? discordMissing : null),
+  configured: () => (discordConfig() === null ? botTokenMissing : null),
 
   start(deps) {
     const discord = discordConfig();
@@ -302,25 +290,21 @@ export const discordProvider: DiscordProvider = {
       return;
     }
 
-    sockets = discordAccounts(discord).map((account) => {
-      const road: DiscordRoad = { discord, archive: deps.archive, service: deps.service, account };
+    const account = botAccount(discord);
+    const road: DiscordRoad = { discord, archive: deps.archive, service: deps.service, account };
 
-      // A message whose handling failed is said and left; a hand-over that did not go is offered again by
-      // the next socket that reads the message, so a failure never takes the process down.
-      return openGateway(account, (message) => {
-        handleDiscordMessage(road, message).catch((error: unknown) => {
-          console.error(`discord: message ${message.messageId} in channel ${message.channelId} failed:`, error);
-        });
+    // A message whose handling failed is said and left; a hand-over that did not go is offered again when
+    // the socket reads the message again, so a failure never takes the process down.
+    socket = openGateway(account, (message) => {
+      handleDiscordMessage(road, message).catch((error: unknown) => {
+        console.error(`discord: message ${message.messageId} in channel ${message.channelId} failed:`, error);
       });
     });
   },
 
   stop() {
-    for (const socket of sockets) {
-      socket.stop();
-    }
-
-    sockets = [];
+    socket?.stop();
+    socket = null;
   },
 
   // What the provider knows of a room, or null where the number is not one of its rooms.
@@ -338,7 +322,7 @@ export const discordProvider: DiscordProvider = {
     return {
       id: chatId,
       owns: true,
-      identity: await identityIn(archive, discord, chatId),
+      identity: await identityIn(archive, discord),
       kind: isOwnerRoom(chatId, await discordProvider.ownerRoom()) ? "owner" : "group",
       privateTo: await archive.chats().privateRoomPerson(discordKey, chatId),
       title: await roomTitle(channel),
@@ -377,19 +361,16 @@ export const discordProvider: DiscordProvider = {
       throw platformRefusal(`There is no room ${request.roomId}.`);
     }
 
-    // The voice this send speaks with — the one it names, else the room's — and the account that voice is.
-    // A voice on a person's account has none, and neither has a voice whose token is missing.
-    const voice = request.mode
-      ?? await roomVoice(archive, request.roomId)
-      ?? discordAccounts(discord)[0]?.voice
-      ?? "bot-account";
+    // The voice this send speaks with — the one it names, else the room's, else the bot's — and the account
+    // that voice is. A voice on a user account has none.
+    const voice = request.mode ?? await roomVoice(archive, request.roomId) ?? "bot-account";
     const account = accountFor(discord, voice);
 
     if (account === null) {
       throw platformRefusal(`That account cannot send: ${voiceMissing(voice)}.`);
     }
 
-    const api = { token: account.token, bot: account.bot };
+    const api = { token: account.token };
     // Every kind that points at a message points at one of the store's numbers, and what goes out has to
     // name the platform's own.
     const nativeOf = async (messageId: number): Promise<string | null> =>

@@ -26,8 +26,6 @@ fn port(name: &str, otherwise: u16) -> u16 {
 pub struct Config {
   /// Whether the application's bot token is set, which the `bot-account` mode stands on.
   pub bot_token: bool,
-  /// Whether the user token of the agent's own account is set, which the `own-account` mode stands on.
-  pub self_token: bool,
   /// The loopback port the service listens on.
   pub port: u16,
   /// The loopback port the gateway listens on.
@@ -45,7 +43,6 @@ impl Config {
   pub fn from_environment() -> Self {
     Self {
       bot_token: given("BMO_DISCORD_TOKEN").is_some(),
-      self_token: given("BMO_DISCORD_SELF_TOKEN").is_some(),
       port: port("BMO_DISCORD_PORT", SERVICE_PORT),
       gateway_port: port("BMO_DISCORD_GATEWAY_PORT", GATEWAY_PORT),
       route_token: given("BMO_DISCORD_ROUTE_TOKEN").unwrap_or_default(),

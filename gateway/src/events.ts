@@ -136,14 +136,11 @@ export function parseDispatch(frame: GatewayFrame, now = Date.now()): DiscordMes
 
 // What the road says to open a session: who it is, what it asks to be sent, and enough about
 // itself for the platform's own bookkeeping. The token is in the frame because that is where the
-// gateway takes it; nothing prints this frame. A person's account names no intents — it is sent
-// what that person's own client is — and describes itself as a client does.
-export function identifyFrame(token: string, bot = true): string {
+// gateway takes it; nothing prints this frame.
+export function identifyFrame(token: string): string {
   return JSON.stringify({
     op: gatewayOps.identify,
-    d: bot
-      ? { token, intents: gatewayIntents, properties: { os: "linux", browser: clientName(), device: clientName() } }
-      : { token, properties: { os: "Linux", browser: "Chrome", device: "" } },
+    d: { token, intents: gatewayIntents, properties: { os: "linux", browser: clientName(), device: clientName() } },
   });
 }
 

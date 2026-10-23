@@ -15,7 +15,7 @@ This repository is the Discord chat provider, `bmo-discord`: Discord as the rece
 through bmo-chat's provider contract. The Rust service at the root declares the provider's modes,
 capabilities and dialect, runs the `discord-markdown` dialect, serves the protocol's routes and hands what its
 rooms say to the receiver. The gateway, a bun process in `gateway/` that only the service calls over the
-loopback, holds the Discord accounts' sockets, makes every REST call and keeps the provider's own numbers.
+loopback, holds the bot account's socket, makes every REST call and keeps the provider's own numbers.
 
 ## Rules
 

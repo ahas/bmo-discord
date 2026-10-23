@@ -1,7 +1,7 @@
 # Discord
 
 The Discord chat provider: one chat provider like the others, and the one with the most verbs. It listens on
-gateway sockets it opens itself and speaks over Discord's REST API, with no vendor library in between: what a
+a gateway socket it opens itself and speaks over Discord's REST API, with no vendor library in between: what a
 library would do here is the gateway's own hundred lines plus everything this provider does not use. The
 routes, the seam and the settings are in `docs/boundary-api.md`; this document is what the provider is, how it
 is set up and what it can do.
@@ -15,9 +15,9 @@ is set up and what it can do.
   rather than reconnecting for ever. An application in more than a hundred servers is reviewed before it is
   granted.
 - **The bot invited into a guild**, with permission to read and send in the channels it is meant to be in.
-- **For the mode where the account is the agent's own, that account's user token.** A user token needs no
-  application, no intent and no invitation: the account reads whatever rooms it is already in. No mode runs on
-  the owner's own account (「The declaration」).
+
+No mode runs on a user account, the owner's or one made for the agent, so no user token is part of the setup
+(「The declaration」).
 
 ## The declaration
 
@@ -25,60 +25,60 @@ is set up and what it can do.
 |---|---|
 | `key` | `discord` |
 | `label` | the platform's name in this repository's language pack, `lang/ko.toml` |
-| `configured` | null where at least one of the two tokens is set, else the sentence naming both |
+| `configured` | null where `BMO_DISCORD_TOKEN` is set, else the sentence naming it |
 | `can` | `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing`, `edit`, as `policy/discord.toml` lists them |
 | `dialect` | `discord-markdown` (「The dialect」) |
 | `shows` | null |
 | `numbering` | `assigned` for rooms, people and messages, with the rooms' and people's ranges declared (「Numbering」) |
 | `speakers` | false |
 
-The modes. The two on accounts of the provider's own each stand on their own setting: the service reads the
-settings as it starts, so a token put in place stands its mode up with the next start, and the gateway reads
-them each time it opens a socket or sends. The two on a person's account stand on nothing:
+The modes. The bot account's stands on its token: the service reads the setting as it starts, so a token put
+in place stands the mode up with the next start, and the gateway reads it each time it opens its socket or
+sends. The three on a user account stand on nothing:
 
 | Voice | Reach | Standing | `canReplyTo` |
 |---|---|---|---|
 | `bot-account` | `all-messages` | active when `BMO_DISCORD_TOKEN` is set | true |
 | `human-reader` | `all-messages` | `unsupported` | false |
 | `human-avatar` | `all-messages` | `unsupported` | false |
-| `own-account` | `all-messages` | active when `BMO_DISCORD_SELF_TOKEN` is set | true |
+| `own-account` | `all-messages` | `unsupported` | false |
 
-An inactive mode's reason names the setting it is missing.
+The `bot-account` mode is the one that can be active; while it is inactive its reason names the setting it is
+missing.
 
-- **The modes on a person's account are `unsupported`.** Discord's terms forbid automating a user account,
-  and the reason both modes carry is the terms' own words, as `policy/discord.toml` holds them. No setting
-  makes either active: the provider holds no token of the owner's own account, never reads a room through it
-  and never answers in it. Neither mode delivers a message, so neither has one an answer could be pinned to.
+- **The modes on a user account are `unsupported`.** Discord's terms forbid automating a user account, whoever
+  it belongs to: `human-reader` and `human-avatar` would run on the owner's account, and `own-account` on an
+  account made for the agent. The reason all three carry is the terms' own words, as `policy/discord.toml`
+  holds them. No setting makes any of them active: the provider holds no user account's token, never reads a
+  room through one and never answers in one. None of them delivers a message, so none has one an answer could
+  be pinned to.
 - **The rooms of the account are not listed.** The provider declares no `roomList`: the bot account cannot ask
   the platform for the one-to-one channels it is in, and the channels a guild answers with include those the
   bot cannot read, so no list the platform gives is the rooms the account is in.
 
-## The sockets
+## The socket
 
-- **One gateway connection per token, kept open**: the hello names the beat, the socket heartbeats on it, and a
-  dropped socket is opened again with growing delay.
+- **One gateway connection, the bot account's, kept open**: the hello names the beat, the socket heartbeats on
+  it, and a dropped socket is opened again with growing delay.
 - **A session is resumed where the platform lets it** and started fresh where it does not, so a blip does not
   deliver a room's messages twice or lose them.
 - **A refused intent is not a blip.** The close code that says a privileged intent is not enabled stops the bot
   account's socket, with one line naming MESSAGE_CONTENT, instead of reconnecting for ever.
-- **A user token's socket speaks differently:**
-  - requests carry the token bare, without the `Bot ` scheme a bot token takes;
-  - the identify names no intents, since a user account is delivered what its client would be, and so it can
-    never meet the intent refusal;
-  - the account's own id is read off the token's first segment, as the bot's is;
-  - group DMs are rooms of this provider, beside guild channels and one-to-one DMs.
-- **The bot account's socket identifies itself** with the client name `BMO_DISCORD_CLIENT_NAME` gives; a user
-  token's socket describes itself as a desktop browser client does.
+- **Every request carries the token under the `Bot ` scheme**, and the identify names the intents the provider
+  reads with, MESSAGE_CONTENT among them.
+- **The bot account's own id is read off the token's first segment**, so the provider knows who it is in a
+  room before the socket is open.
+- **The socket identifies itself** with the client name `BMO_DISCORD_CLIENT_NAME` gives.
+- **Guild channels and one-to-one DMs are this provider's rooms.** A bot account is never in a group DM.
 
 ## Which account answers a room
 
-- **It follows which accounts are in it.** A room the bot account is in is answered by the bot, and a room the
-  agent's own account is in by that account, with no prefix.
+- **The bot account answers every room.** It is the one account the provider holds a socket for.
 - **What the provider has heard in a room is written down per room.** The voice of the socket that heard the
-  room last is written over whatever stood.
-- **A send speaks with the voice it names**, or with the voice the room is answered by. A voice whose token is
-  missing is refused, naming what is missing, and a voice on a person's account is refused with the terms'
-  words.
+  room last is written over whatever stood. A voice the store holds that is not `bot-account`, such as
+  `own-account`, counts as none, and the room is answered by the bot account.
+- **A send speaks with the voice it names**, or with the voice the room is answered by. A voice on a user
+  account is refused with the terms' words.
 
 ## What a Discord room can do
 
@@ -119,10 +119,10 @@ An inactive mode's reason names the setting it is missing.
   clear of KakaoTalk's (rooms below −9,000,000,000,000, people above 9,000,000,000,000) and of Telegram's
   native numbers, and the receiving side refuses a numbering whose ranges overlap another provider's.
 - **A message is handed over once.** The store marks a message as handed over as it goes to the service, so a
-  second socket reading it finds it there; a hand-over that fails takes the mark off again.
+  socket reading it again, after a reconnect, finds it there; a hand-over that fails takes the mark off again.
 - **A DM channel is a one-to-one with the agent.** A message with no guild sends the gateway to ask the
   platform for the channel, once a run for each such channel, and a channel whose type is a DM writes down
-  its recipient as the person it is with. A group DM and a guild channel are nobody's.
+  its recipient as the person it is with. A guild channel is nobody's.
 - **The owner's words** are filed under the person numbered for `BMO_DISCORD_OWNER_ID`.
 
 ## What a message carries
@@ -147,13 +147,14 @@ Every refusal is a bmo-chat refusal code with its English sentence, answered wit
 |---|---|---|
 | no token is set | `not-ready` | |
 | a room this provider has not numbered | `platform` | "There is no room {room}." |
-| a voice whose token is missing, or a voice on a person's account | `platform` | "That account cannot send: {why}." |
+| a voice on a user account, or a voice Discord has no account for | `platform` | "That account cannot send: {why}." |
 | an edit, a reaction or a pin of a message this provider has not numbered | `platform` | "There is no message {message}." |
 | a sticker the pairing does not hold | `platform` | "No sticker is paired with {emoji}." |
 | a send the declaration does not carry | `unsupported-capability` | |
 
 ## Tests
 
-The declaration test holds the modes and the capabilities the service declares, whatever tokens are set. The
-behaviour tests are deferred: no Discord test account is connected, so nothing here has been tried against a
-live Discord server.
+The declaration test holds the modes and the capabilities the service declares: `bot-account` the one mode
+active when its token is set, the three on a user account unsupported with the terms' words whatever is set,
+and the nine capabilities. The behaviour tests are deferred: no Discord test account is connected, so nothing
+here has been tried against a live Discord server.

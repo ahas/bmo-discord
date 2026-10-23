@@ -3,9 +3,10 @@
 # What the provider sends, as its declaration's `can`.
 can = ["text", "replyTo", "photo", "document", "sticker", "reaction", "pin", "typing", "edit"]
 
-# Discord's terms forbid automating a user account, so the modes on a person's account, `human-reader` and
-# `human-avatar`, are declared unsupported with the terms' own words as their reason.
-person_accounts = "Automating normal user accounts (generally called \"self-bots\") outside of the OAuth2/bot API is forbidden, and can result in an account termination if found."
+# Discord's terms forbid automating a user account, so the modes on a user account, `human-reader` and
+# `human-avatar` on the owner's and `own-account` on one made for the agent, are declared unsupported with the
+# terms' own words as their reason.
+user_accounts = "Automating normal user accounts (generally called \"self-bots\") outside of the OAuth2/bot API is forbidden, and can result in an account termination if found."
 
 # The ranges this provider assigns numbers in, both ends included, held clear of the ranges other chat
 # providers declare. Rooms count down from `last`; people count up from `first`.

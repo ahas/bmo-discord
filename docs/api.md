@@ -1,6 +1,6 @@
 # The Discord provider's fixed API
 
-**고정됨 0.3.0.**
+**고정됨 0.4.0.**
 
 This document is `bmo-discord`'s fixed API, in the common wire format, grouped by the resource each route
 acts on. `docs/openapi.json` is the same contract in machine form, and the two clients beside the code —
@@ -25,8 +25,9 @@ The provider declares `text`, `replyTo`, `photo`, `document`, `sticker`, `reacti
 It declares no `fetchMedia`, no `avatars`, no `history`, no `roomList` and no album, audio, voice or delete
 send, so the base refuses those before this provider is asked.
 
-Its `human-reader` and `human-avatar` modes are declared `unsupported`, with Discord's terms as the reason
-(`docs/discord.md`, 「The declaration」).
+Its one mode that can be active is `bot-account`. Its `human-reader`, `human-avatar` and `own-account` modes,
+the modes on a user account, are declared `unsupported`, with Discord's terms as the reason (`docs/discord.md`,
+「The declaration」).
 
 ## The wire
 
@@ -58,8 +59,8 @@ A send this provider does not perform is a refusal; its code is one of the refus
 |---|---|
 | `GET /health` | `ready` (boolean), `reason` (null when ready) and `version` (the service's own version) |
 
-The service answers ready once its gateway is ready and at least one account's token is set; the reason names
-the first setting missing while it is not.
+The service answers ready once its gateway is ready and the bot token is set; the reason names the first
+setting missing while it is not.
 
 ## Rooms
 
@@ -68,7 +69,7 @@ the first setting missing while it is not.
 | `GET /rooms/{roomId}` | | one room: `id`, `owns`, `identity`, `kind` (`owner` or `group`), `privateTo`, `title`. 404 `not-found` where the number is not this provider's |
 
 `identity` is the sender number the account's own words carry in the room, and `privateTo` is the one person of
-a one-to-one, null for a room of several and a group DM.
+a one-to-one, null for a room of several.
 
 ## The owner
 
@@ -84,7 +85,7 @@ a one-to-one, null for a room of several and a group DM.
 | | | A send that does not go is answered with the refusal's code and status |
 
 `prefix` belongs to the `human-avatar` voice, which this provider declares `unsupported`, so it changes no send.
-A send whose `mode` names a voice on a person's account is refused `platform`.
+A send whose `mode` names a voice on a user account is refused `platform`.
 
 Bytes — a document's `bytes` — are base64.
 

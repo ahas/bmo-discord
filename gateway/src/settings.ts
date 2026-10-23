@@ -13,7 +13,7 @@ export interface NumberRange {
 
 export interface DiscordPolicy {
   can: string[];
-  person_accounts: string;
+  user_accounts: string;
   numbering: { rooms: NumberRange; people: NumberRange };
 }
 
