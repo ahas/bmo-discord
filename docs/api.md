@@ -1,6 +1,6 @@
 # The Discord provider's fixed API
 
-**고정됨 0.5.0.**
+**Fixed 0.5.0.**
 
 This document is `bmo-discord`'s fixed API, in the common wire format, grouped by the resource each route
 acts on. `docs/openapi.json` is the same contract in machine form, and the two clients beside the code —
