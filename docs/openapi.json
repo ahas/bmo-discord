@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "bmo-discord",
-    "version": "0.2.0",
+    "version": "0.1.0-rev.1",
     "description": "The Discord chat provider's own API: the loopback seam between its two processes, grouped by the resource each route acts on. The provider routes another unit calls are bmo-chat's, stated in its `docs/protocol.md` and `docs/openapi/provider.json`; this document states only what this repository adds. Every body that is a chat piece is a reference to bmo-chat's OpenAPI documents rather than a copy, so bmo-chat's document is canonical where the two disagree. Bodies are JSON with camelCase keys, times are integers of epoch milliseconds, and every non-2xx answer is the error shape with `code` and `error`."
   },
   "servers": [
