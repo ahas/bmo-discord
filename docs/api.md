@@ -1,5 +1,7 @@
 # The Discord provider's fixed API
 
+**Fixed at 0.1.0-rev.1.**
+
 This document is `bmo-discord`'s fixed API, in the common wire format, grouped by the resource each route
 acts on. `docs/openapi.json` is the same contract in machine form, and the two clients beside the code —
 `src/seam.rs` and `gateway/src/seam.ts` — are generated from that one document by `tools/generate.ts`. Where
