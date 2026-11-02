@@ -86,9 +86,10 @@ one. A failure is answered with the protocol's error shape.
 |---|---|---|
 | `PUT /rooms/{roomId}/messages/{messageId}` | the protocol's `HandedMessage` | the message as the receiving side holds it, 201 or 200; the receiving side's failure in the error shape |
 
-The gateway offers a hand-over again only while the service refuses the connection, within the protocol's
-patience window, as the protocol's retry rule states. A hand-over that still does not go is not marked as handed
-over, so the next socket that reads the same message offers it again.
+The gateway offers a hand-over again, every two seconds, only while the service refuses the connection, and
+keeps offering it until the service is reached; a hand-over that reached the service waits for its answer,
+however long. A hand-over the service answers with a failure is not marked as handed over, so the next socket
+that reads the same message offers it again.
 
 ## Configuration
 

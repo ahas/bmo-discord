@@ -84,6 +84,9 @@ missing.
 
 - **The verbs:** text, an answer aimed at a message, a picture, a file, a sticker, a reaction, a pin, the
   typing state, and an edit of what the agent itself said. It is the fullest surface of the providers.
+- **A call to Discord's REST API waits for its answer,** however long Discord takes: it ends on the answer or
+  on a connection that breaks, and TCP keep-alive on the socket tells a Discord that has gone from one still
+  answering.
 - **A reaction is the agent's own.** A bot may add and remove only its own, which is what the provider does.
 - **A sticker is named by an emoji.** Discord names a sticker by an id of its own, so `BMO_DISCORD_STICKERS`
   pairs each emoji with the application's sticker id, and a sticker asked for by an emoji the pairing does not

@@ -211,8 +211,7 @@ import { routeToken, servicePort } from "./settings";
 
 import type { HandedMessage } from "./chat";
 
-// The protocol's retry rule: a hand-over is offered again only while nothing listens, within this window.
-const patienceMs = 120_000;
+// A hand-over is offered again only while nothing listens, this often, until the service is reached.
 const offerEveryMs = 2_000;
 
 // Why the service did not take a hand-over: the error shape it answered with.
@@ -255,16 +254,15 @@ export class Service {
     private readonly token: string = routeToken(),
   ) {}
 
-  // One message handed over, answered as the receiving side holds it after it.
+  // One message handed over, answered as the receiving side holds it after it, however long that takes.
   async handOver(roomId: number, messageId: number, message: HandedMessage): Promise<HandedMessage> {
-    const deadline = Date.now() + patienceMs;
-
     for (;;) {
       try {
         const answer = await fetch(\`\${this.base}/rooms/\${roomId}/messages/\${messageId}\`, {
           method: "${handOver.method}",
           headers: { authorization: \`Bearer \${this.token}\`, "content-type": "application/json" },
           body: JSON.stringify(message),
+          timeout: false,
         });
         const body = await answer.text();
 
@@ -274,7 +272,7 @@ export class Service {
 
         return JSON.parse(body) as HandedMessage;
       } catch (error) {
-        if (!refusedConnection(error) || Date.now() >= deadline) {
+        if (!refusedConnection(error)) {
           throw error;
         }
 

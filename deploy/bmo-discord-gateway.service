@@ -13,8 +13,8 @@ EnvironmentFile=-%h/.local/share/bmo-discord/deploy/discord.env
 ExecStart=%h/.bun/bin/bun gateway/src/main.ts
 Restart=always
 RestartSec=2
-# The gateway closes its sockets and the store within the stop it is given.
-TimeoutStopSec=30
+# A stop signals the gateway, which closes its sockets and the store and ends; the stop waits for it.
+TimeoutStopSec=infinity
 
 [Install]
 WantedBy=default.target

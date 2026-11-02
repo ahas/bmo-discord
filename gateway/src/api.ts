@@ -5,7 +5,9 @@
 // and the body it takes, so what this machine sends can be read off the page.
 
 const apiBase = "https://discord.com/api/v10";
-const requestTimeoutMs = 30_000;
+
+// Every call waits for Discord's answer, however long: no idle timer of Bun's cuts it, and the socket's TCP
+// keep-alive tells a Discord that has gone from one still answering.
 
 // The token a call carries: the application's bot token, which goes under the `Bot` scheme.
 export interface DiscordCall {
@@ -29,7 +31,7 @@ async function call(
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    signal: AbortSignal.timeout(requestTimeoutMs),
+    timeout: false,
   });
 
   if (!response.ok) {
@@ -108,7 +110,7 @@ export async function sendFile(
     method: "POST",
     headers: { authorization: authorization(api) },
     body: form,
-    signal: AbortSignal.timeout(requestTimeoutMs),
+    timeout: false,
   });
 
   if (!response.ok) {

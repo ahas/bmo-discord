@@ -98,7 +98,8 @@ Bytes — a document's `bytes` — are base64.
 
 A message the receiving side could not take is answered with its own error shape and status, so `not-ready`
 reaches the hand-over as it came. A hand-over is offered again only while nothing listens at the receiving
-side, within the protocol's patience window; a request that reached a listener is never offered again.
+side, every two seconds until something does; a request that reached a listener waits for its answer and is
+never offered again.
 
 The provider hands over `live` and `edit` messages under their room and number; it declares no `history`, so
 no past message is read back. A message that carried a file crosses as a mark in `text` with

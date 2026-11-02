@@ -97,6 +97,8 @@ async function answer(request: Request): Promise<Response> {
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: gatewayPort(),
+  // A call the service makes is held until it is answered, however long the platform takes over it.
+  idleTimeout: 0,
   async fetch(request) {
     try {
       return await answer(request);

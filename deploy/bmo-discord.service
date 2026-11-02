@@ -14,8 +14,9 @@ EnvironmentFile=-%h/.local/share/bmo-discord/deploy/discord.env
 ExecStart=%h/.local/share/bmo-discord/deploy/bin/bmo-discord serve
 Restart=always
 RestartSec=2
-# A stop signals the service, which stops watching the gateway and ends; the wait bounds it.
-TimeoutStopSec=30
+# A stop signals the service, which finishes the calls it is serving, stops watching the gateway and ends; the
+# stop waits for it.
+TimeoutStopSec=infinity
 
 [Install]
 WantedBy=default.target
