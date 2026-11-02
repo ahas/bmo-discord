@@ -12,17 +12,17 @@ autotests = false
 
 [dependencies]
 async-trait = "0.1.92"
-axum = { version = "0.8.4", default-features = false, features = ["http1", "json", "tokio"] }
+axum = { version = "0.8.9", features = ["macros", "multipart", "ws"] }
 bmo-chat = { path = "../../base/chat/provider" }
 bmo-text = { path = "../../base/text", default-features = false }
 # The service binary's verbs.
 clap = { version = "4.5.40", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 # The gateway and the served service's own health are reached over the loopback, with no TLS; the receiver
 # is reached through bmo-chat's link.
-reqwest = { version = "0.13.5", default-features = false, features = ["json"] }
+reqwest = { version = "0.13.5", features = ["json", "query", "stream"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.138"
-tokio = { version = "1.53.2", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.53.3", features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt", "rt-multi-thread", "signal", "sync", "test-util", "time"] }
 toml = { version = "0.8.23", default-features = false, features = ["parse"] }
 
 [dev-dependencies]
