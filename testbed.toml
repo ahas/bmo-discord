@@ -10,7 +10,7 @@ languages = ["cargo", "bun"]
 setup = ["cd gateway && bun install --frozen-lockfile"]
 
 [check]
-quick = ["layout", "dependencies", "korean"]
+quick = ["layout", "dependencies", "korean", "cargo-profile"]
 base_libraries = ["bmo-chat", "bmo-chat-client", "bmo-ui", "bmo-text"]
 # No code file is allowed a Korean line. The words a person reads stand in `lang/ko.toml`, which is not code.
 korean_ledger = "korean-ledger.json"
