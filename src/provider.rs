@@ -134,6 +134,7 @@ impl DiscordProvider {
       tag,
       prefix,
       reply_to_message_id,
+      account_id,
     } = request;
     let caption = |words: Option<String>| words.map(|words| self.dialect.convert(&words).markup);
     let send = match send {
@@ -182,6 +183,7 @@ impl DiscordProvider {
       tag,
       prefix,
       reply_to_message_id,
+      account_id,
     }
   }
 
