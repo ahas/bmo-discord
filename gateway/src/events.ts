@@ -58,6 +58,9 @@ export interface DiscordMessage {
   // socket like everybody else's, and this is how they are told apart.
   authorIsBot: boolean;
   text: string;
+  // The nonce the message was sent with, where the platform passes one on: how a message this provider
+  // sent through the owner's account is known when it comes back.
+  nonce: string | null;
   // Sent at, in epoch milliseconds.
   sentAt: number;
   files: { name: string; contentType: string | null; url: string }[];
@@ -119,6 +122,7 @@ export function parseDispatch(frame: GatewayFrame, now = Date.now()): DiscordMes
       : typeof author?.username === "string" ? author.username : discordWords.unknown_sender,
     authorIsBot: author?.bot === true,
     text: typeof payload.content === "string" ? payload.content : "",
+    nonce: typeof payload.nonce === "string" || typeof payload.nonce === "number" ? String(payload.nonce) : null,
     sentAt: Number.isNaN(timestamp) ? now : Math.round(timestamp),
     files: attachments.flatMap((attachment) => {
       if (!isRecord(attachment) || typeof attachment.url !== "string") {

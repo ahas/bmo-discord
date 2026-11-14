@@ -3,10 +3,18 @@
 # What the provider sends, as its declaration's `can`.
 can = ["text", "replyTo", "photo", "document", "sticker", "reaction", "pin", "typing", "edit"]
 
-# Discord's terms forbid automating a user account, so the modes on a user account, `human-reader` and
-# `human-avatar` on the owner's and `own-account` on one made for the agent, are declared unsupported with the
-# terms' own words as their reason.
+# Discord's terms forbid automating a user account. `own-account`, on an account made for the agent, is declared
+# unsupported with the terms' own words as its reason; the owner's own account runs on his own settings and at
+# his own risk (docs/discord.md, 「The owner's account」).
 user_accounts = "Automating normal user accounts (generally called \"self-bots\") outside of the OAuth2/bot API is forbidden, and can result in an account termination if found."
+
+# The least time, in milliseconds, between one call on the owner's account ending and the next starting, where
+# `BMO_DISCORD_OWNER_PACE_MS` does not name one.
+owner_pace_ms = 2000
+
+# How often, in milliseconds, the gateway confirms the owner's account with Discord after the first time, as it
+# starts (docs/discord.md, 「The owner's account」).
+owner_confirm_ms = 600000
 
 # The ranges this provider assigns numbers in, both ends included, held clear of the ranges other chat
 # providers declare. Rooms count down from `last`; people count up from `first`.

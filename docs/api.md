@@ -25,9 +25,10 @@ The provider declares `text`, `replyTo`, `photo`, `document`, `sticker`, `reacti
 It declares no `fetchMedia`, no `avatars`, no `history`, no `roomList` and no album, audio, voice or delete
 send, so the base refuses those before this provider is asked.
 
-Its one mode that can be active is `bot-account`. Its `human-reader`, `human-avatar` and `own-account` modes,
-the modes on a user account, are declared `unsupported`, with Discord's terms as the reason (`docs/discord.md`,
-「The declaration」).
+Its `bot-account` mode is active where the bot token is set, and its `human-reader` and `human-avatar` modes,
+the owner's account sending, while the gateway has confirmed the owner's account with its own call; each is
+inactive otherwise, saying what it waits on. Its `own-account` mode is declared `unsupported`, with Discord's
+terms as the reason (`docs/discord.md`, 「The declaration」).
 
 ## The wire
 
@@ -62,6 +63,15 @@ A send this provider does not perform is a refusal; its code is one of the refus
 The service answers ready once its gateway is ready and the bot token is set; the reason names the first
 setting missing while it is not.
 
+## The owner's account
+
+| Route | Answers |
+|---|---|
+| `GET /owner-account` | `ready` (true once the gateway has confirmed the owner's account with Discord), `reason` (why not, null when confirmed) and `version` |
+
+The gateway answers from its last confirmation and makes no call on Discord to answer it; how it confirms the
+account is `docs/discord.md`, 「The owner's account」.
+
 ## Rooms
 
 | Route | Query | Answers |
@@ -69,8 +79,10 @@ setting missing while it is not.
 | `GET /rooms/{roomId}` | | one room: `id`, `owns`, `identity`, `kind` (`owner` or `group`), `privateTo`, `title`. 404 `not-found` where the number is not this provider's |
 
 `identity` is the sender number the account's own words carry in the room, and `privateTo` is the one person of
-a one-to-one, null for a room of several. The gateway says nothing of a room's modes: the service answers the
-protocol's room with `modes`, the voices its declaration has active, which every room takes alike.
+a one-to-one, null for a room of several. `modes` are the voices whose account answers the room: `bot-account`
+in every room, and `human-reader` and `human-avatar` besides where the owner's account answers it
+(`docs/discord.md`, 「The owner's account」). The service answers the protocol's room with those of them its
+declaration has active, and with every active voice where the gateway names none.
 
 ## The owner
 
@@ -85,8 +97,12 @@ protocol's room with `modes`, the voices its declaration has active, which every
 | `POST /sends` | a send as bmo-chat's `docs/contract.md` states it: `roomId`, `kind`, the kind's `fields`, and optional `mode`, `speaker`, `tag`, `prefix` and `replyToMessageId` | 201 with `messageId` (null where Discord gives none back) and `missed` (empty, since no album goes) |
 | | | A send that does not go is answered with the refusal's code and status |
 
-`prefix` belongs to the `human-avatar` voice, which this provider declares `unsupported`, so it changes no send.
-A send whose `mode` names a voice on a user account is refused `platform`.
+A send whose `mode` names `human-reader` or `human-avatar` goes out through the owner's account, at the
+provider's pace, in a room that account answers, and only as `text`, `edit` or `typing`. `prefix` belongs to the
+`human-avatar` voice: its words go out behind it, or behind `BMO_DISCORD_AVATAR_PREFIX` where the send names
+none, and a send in that voice with neither is refused. In every other voice `prefix` changes nothing, so a
+`human-reader` send carries the owner's words as given. A send whose `mode` names `own-account`, or a voice
+whose account is not held, is refused `platform`.
 
 Bytes — a document's `bytes` — are base64.
 

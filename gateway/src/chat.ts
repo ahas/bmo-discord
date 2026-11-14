@@ -111,6 +111,8 @@ export interface ProviderRoom {
   kind: RoomKind;
   privateTo: number | null;
   title: string | null;
+  // The voices whose account answers the room; the service keeps those its declaration has active.
+  modes?: ChatVoice[] | null;
 }
 
 export interface ProviderOwner {

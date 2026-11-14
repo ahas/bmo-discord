@@ -4,18 +4,32 @@
 // Written plainly rather than through a library: each call is the endpoint the platform documents
 // and the body it takes, so what this machine sends can be read off the page.
 
-const apiBase = "https://discord.com/api/v10";
+// Discord's REST address, or the one `BMO_DISCORD_API_URL` names in its place, as a stand-in's in the tests.
+function apiBase(): string {
+  const named = process.env.BMO_DISCORD_API_URL;
+
+  return named === undefined || named === "" ? "https://discord.com/api/v10" : named;
+}
 
 // Every call waits for Discord's answer, however long: no idle timer of Bun's cuts it, and the socket's TCP
 // keep-alive tells a Discord that has gone from one still answering.
 
-// The token a call carries: the application's bot token, which goes under the `Bot` scheme.
+// The token a call carries, and whether it is the application's bot token, which goes under the `Bot`
+// scheme; a user token goes bare.
 export interface DiscordCall {
   token: string;
+  bot: boolean;
 }
 
 export function authorization(api: DiscordCall): string {
-  return `Bot ${api.token}`;
+  return api.bot ? `Bot ${api.token}` : api.token;
+}
+
+// A call Discord answered with a failure, and the status it answered with.
+export class DiscordAnswered extends Error {
+  constructor(readonly status: number, what: string, body: string) {
+    super(`Discord ${what} answered ${status}: ${body}`);
+  }
 }
 
 async function call(
@@ -24,7 +38,7 @@ async function call(
   path: string,
   body?: unknown,
 ): Promise<Record<string, unknown> | null> {
-  const response = await fetch(`${apiBase}${path}`, {
+  const response = await fetch(`${apiBase()}${path}`, {
     method,
     headers: {
       authorization: authorization(api),
@@ -35,7 +49,7 @@ async function call(
   });
 
   if (!response.ok) {
-    throw new Error(`Discord ${method} ${path} answered ${response.status}: ${await response.text()}`);
+    throw new DiscordAnswered(response.status, `${method} ${path}`, await response.text());
   }
 
   const answer: unknown = await response.json().catch(async () => null);
@@ -55,9 +69,13 @@ export async function sendMessage(
   channelId: string,
   content: string,
   replyToId: string | null = null,
+  nonce: string | null = null,
 ): Promise<string | null> {
   return idOf(await call(api, "POST", `/channels/${channelId}/messages`, {
     content,
+    // The platform passes the nonce on with the message it makes, which is how the message is known as this
+    // provider's own when it comes back down the socket.
+    ...(nonce === null ? {} : { nonce }),
     // `fail_if_not_exists: false` is what keeps an answer from being refused whole because the
     // message it points at has been taken down: it goes out loose instead.
     ...(replyToId === null ? {} : { message_reference: { message_id: replyToId, fail_if_not_exists: false } }),
@@ -106,7 +124,7 @@ export async function sendFile(
   }));
   form.append("files[0]", new Blob([bytes as unknown as BlobPart]), fileName);
 
-  const response = await fetch(`${apiBase}/channels/${channelId}/messages`, {
+  const response = await fetch(`${apiBase()}/channels/${channelId}/messages`, {
     method: "POST",
     headers: { authorization: authorization(api) },
     body: form,
@@ -114,7 +132,7 @@ export async function sendFile(
   });
 
   if (!response.ok) {
-    throw new Error(`Discord file upload answered ${response.status}: ${await response.text()}`);
+    throw new DiscordAnswered(response.status, "file upload", await response.text());
   }
 
   return idOf(await response.json().catch(async () => null) as Record<string, unknown> | null);
@@ -160,6 +178,12 @@ export async function directRecipient(api: DiscordCall, channelId: string): Prom
   const only = recipients.length === 1 ? recipients[0] : null;
 
   return channel?.type === 1 && typeof only === "object" && only !== null && "id" in only && typeof only.id === "string" ? only.id : null;
+}
+
+// The account a token is, as Discord itself answers: the current user's id, or null where the answer names
+// none.
+export async function currentUser(api: DiscordCall): Promise<string | null> {
+  return idOf(await call(api, "GET", "/users/@me"));
 }
 
 // The typing state, which lapses by itself after about ten seconds. There is nothing to take back,

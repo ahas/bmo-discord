@@ -111,4 +111,9 @@ impl Gateway {
   pub async fn owner(&self) -> Result<ProviderOwner, GatewayFailure> {
     self.call(Method::GET, "/owner", None::<&()>).await
   }
+
+  /// Whether the gateway has confirmed the owner's account, and where it has not, why.
+  pub async fn owner_account(&self) -> Result<ChatHealth, GatewayFailure> {
+    self.call(Method::GET, "/owner-account", None::<&()>).await
+  }
 }

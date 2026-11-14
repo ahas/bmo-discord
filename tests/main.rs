@@ -4,3 +4,4 @@
 mod declaration;
 mod personal_data;
 mod room_modes;
+mod stand_in;

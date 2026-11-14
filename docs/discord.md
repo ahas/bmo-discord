@@ -16,8 +16,12 @@ is set up and what it can do.
   granted.
 - **The bot invited into a guild**, with permission to read and send in the channels it is meant to be in.
 
-No mode runs on a user account, the owner's or one made for the agent, so no user token is part of the setup
-(「The declaration」).
+- **For the modes on the owner's account, the owner's own user token**, `BMO_DISCORD_OWNER_TOKEN`, with
+  `BMO_DISCORD_OWNER_ID` naming the same account, which the gateway confirms with Discord itself. Discord's
+  terms forbid automating a user account and can end the account for it (`policy/discord.toml`); the owner's
+  account runs here on his own decision and at his own risk, so only his own setting stands it up and every call
+  made on it keeps the provider's pace (「The owner's account」). No account made for the agent is part of the
+  setup.
 
 ## The declaration
 
@@ -32,26 +36,30 @@ No mode runs on a user account, the owner's or one made for the agent, so no use
 | `numbering` | `assigned` for rooms, people and messages, with the rooms' and people's ranges declared (「Numbering」) |
 | `speakers` | false |
 
-The modes. The bot account's stands on its token: the service reads the setting as it starts, so a token put
-in place stands the mode up with the next start, and the gateway reads it each time it opens its socket or
-sends. The three on a user account stand on nothing:
+The modes. The bot account's stands on its token: the service reads the setting as it starts, so a token put in
+place stands the mode up with the next start, and the gateway reads it each time it opens its socket or sends.
+The two on the owner's account stand on the gateway having confirmed that account with its own call, which the
+service reads from the gateway as it runs (「The owner's account」).
 
 | Voice | Reach | Standing | `canReplyTo` |
 |---|---|---|---|
 | `bot-account` | `all-messages` | active when `BMO_DISCORD_TOKEN` is set | true |
-| `human-reader` | `all-messages` | `unsupported` | false |
-| `human-avatar` | `all-messages` | `unsupported` | false |
+| `human-reader` | `all-messages` | active when `BMO_DISCORD_TOKEN` is set and the gateway has confirmed the owner's account | false |
+| `human-avatar` | `all-messages` | active when `BMO_DISCORD_TOKEN` is set and the gateway has confirmed the owner's account | false |
 | `own-account` | `all-messages` | `unsupported` | false |
 
-The `bot-account` mode is the one that can be active; while it is inactive its reason names the setting it is
-missing.
+An inactive mode's reason says what it waits on: the bot token where it is missing, and otherwise, for the
+owner's account, what the gateway's confirmation answered.
 
-- **The modes on a user account are `unsupported`.** Discord's terms forbid automating a user account, whoever
-  it belongs to: `human-reader` and `human-avatar` would run on the owner's account, and `own-account` on an
-  account made for the agent. The reason all three carry is the terms' own words, as `policy/discord.toml`
-  holds them. No setting makes any of them active: the provider holds no user account's token, never reads a
-  room through one and never answers in one. None of them delivers a message, so none has one an answer could
-  be pinned to.
+- **The bot account reads every room.** It is the one account the provider holds a socket for, and every
+  message a room says, the owner's among them, is delivered on it.
+- **`human-reader` and `human-avatar` are the owner's account, sending.** They stand on the bot account too,
+  since what they say is read back on its socket, and on the owner's account being confirmed. They read nothing
+  of their own, so neither delivers a message an answer could be pinned to. What they send, and in which rooms,
+  is 「The owner's account」.
+- **`own-account` is `unsupported`.** It would run on an account made for the agent, which Discord's terms
+  forbid automating and which nobody here has decided to risk; its reason is the terms' own words, as
+  `policy/discord.toml` holds them, and no setting makes it active.
 - **The rooms of the account are not listed.** The provider declares no `roomList`: the bot account cannot ask
   the platform for the one-to-one channels it is in, and the channels a guild answers with include those the
   bot cannot read, so no list the platform gives is the rooms the account is in.
@@ -64,8 +72,8 @@ missing.
   deliver a room's messages twice or lose them.
 - **A refused intent is not a blip.** The close code that says a privileged intent is not enabled stops the bot
   account's socket, with one line naming MESSAGE_CONTENT, instead of reconnecting for ever.
-- **Every request carries the token under the `Bot ` scheme**, and the identify names the intents the provider
-  reads with, MESSAGE_CONTENT among them.
+- **Every request of the bot account carries its token under the `Bot ` scheme**, and the identify names the
+  intents the provider reads with, MESSAGE_CONTENT among them.
 - **The bot account's own id is read off the token's first segment**, so the provider knows who it is in a
   room before the socket is open.
 - **The socket identifies itself** with the client name `BMO_DISCORD_CLIENT_NAME` gives.
@@ -73,12 +81,62 @@ missing.
 
 ## Which account answers a room
 
-- **The bot account answers every room.** It is the one account the provider holds a socket for.
+- **The bot account answers every room.** A send that names no voice speaks in it.
 - **What the provider has heard in a room is written down per room.** The voice of the socket that heard the
   room last is written over whatever stood. A voice the store holds that is not `bot-account`, such as
   `own-account`, counts as none, and the room is answered by the bot account.
-- **A send speaks with the voice it names**, or with the voice the room is answered by. A voice on a user
-  account is refused with the terms' words.
+- **A send speaks with the voice it names**, or with the voice the room is answered by. `human-reader` and
+  `human-avatar` speak through the owner's account, in the rooms 「The owner's account」 names; `own-account`
+  is refused with the terms' words.
+- **A room's `modes`** are `bot-account` in every room, and `human-reader` and `human-avatar` besides in a room
+  the owner's account answers, each only while the declaration has it active.
+
+## The owner's account
+
+The owner's own Discord account, which `human-reader` and `human-avatar` send through. The provider holds its
+token and nothing else of it: no socket is opened on it, and every room is read on the bot account's.
+
+- **The gateway confirms the account with its own call.** As it starts, and every `owner_confirm_ms` of
+  `policy/discord.toml` after, the gateway asks Discord whose the token is, through the owner's account at the
+  provider's pace: the current-user call, `GET /users/@me`. The account is confirmed where Discord answers with
+  the account `BMO_DISCORD_OWNER_ID` names. It is not, with the reason, where the token or the id is unset,
+  where Discord refuses the token, or where the token is another account's. A call on the owner's account that
+  Discord refuses as unauthorized, a send among them, takes the confirmation away at once with the same reason.
+  A check that does not reach Discord, or that Discord answers with any other failure, leaves the answer that
+  stood, so until the first check is answered the account is not yet confirmed.
+- **The service reads the confirmation from the gateway.** Every five seconds, as it asks the gateway's health,
+  the service asks the gateway for the owner's account (`docs/boundary-api.md`, 「The seam between the service
+  and the gateway」) and declares the two modes from the answer. While the gateway does not answer, they are
+  inactive and say so.
+- **It answers a room the owner has been heard in.** The store writes a room down once a message the owner's
+  account wrote arrives there on the bot account's socket, which shows the account is in the room. The owner's
+  one-to-one with the agent is never one of them, and nor is any room while the account is not confirmed. A
+  send through the owner's account into any other room is refused.
+- **`human-avatar` carries the agent's prefix.** The words of a `text` or an `edit` sent in that voice go out
+  behind the send's `prefix`, or behind `BMO_DISCORD_AVATAR_PREFIX` where the send names none; words that
+  already begin with it are left as they are, and the prefix is followed by one space unless it ends in one. A
+  send in that voice with no prefix from either is refused, so the owner's account never says the agent's
+  words unmarked.
+- **`human-reader` carries the owner's own words unprefixed.** It is the voice a send in the owner's own words
+  names, and its words go out exactly as given. A prefix the send carries is ignored there, as in every voice
+  but `human-avatar`.
+- **It sends words and the typing state:** `text`, aimed at a message where the send names one, `edit` of a
+  message it sent here itself, and `typing`. A user account cannot post embeds or the application's stickers,
+  and a reaction or a pin as the owner would carry no mark of whose it is, so every other kind is refused in
+  these voices.
+- **Every call on it keeps the provider's pace.** The calls made through the owner's account go one at a time,
+  each started no sooner than the pace after the one before it ended: `BMO_DISCORD_OWNER_PACE_MS` milliseconds,
+  or `owner_pace_ms` in `policy/discord.toml` where it is unset. The calls made through the bot account do not
+  wait on it.
+- **Its token goes bare.** A user token is sent in the authorization header as it is, where the bot's goes
+  under the `Bot ` scheme.
+- **What it sent comes back as the provider's own.** Its message comes back down the bot account's socket as a
+  message the owner's account wrote. The provider tells it from the owner's own typing by the nonce it sent the
+  message with, by the words it is still waiting to see come back in that channel, and by the mark the store
+  writes once the platform answers with the message's id. Such a message is kept under its number and the voice
+  it went out in, filed under the owner's number, and named for the agent where it went out in `human-avatar`.
+  Like the bot account's own words it is handed over once, under the number the send answered with, so the
+  receiving side finds the message it already holds, and an edit of it is handed over as an edit.
 
 ## What a Discord room can do
 
@@ -112,7 +170,8 @@ missing.
   and the provider's own numbers are what every hand-over and every send carries.
 - **The gateway keeps the numbers** in its store, `discord.sqlite` under `BMO_DISCORD_DATA`: a number for each
   channel, each person and each message it has seen or sent, the messages it has handed over, the voice each
-  room is answered by, and the one person of each DM channel.
+  room is answered by, the one person of each DM channel, the rooms the owner has been heard in, and the
+  messages it sent through the owner's account with the voice each went out in.
 - **The ranges:** room numbers count down from −8,000,000,000,000 and person numbers count up from
   8,000,000,000,000, each taking one past the furthest the counter has ever reached, so a number once given is
   never given again. A message number counts up from one within its room, past the highest the room was ever
@@ -150,14 +209,25 @@ Every refusal is a bmo-chat refusal code with its English sentence, answered wit
 |---|---|---|
 | no token is set | `not-ready` | |
 | a room this provider has not numbered | `platform` | "There is no room {room}." |
-| a voice on a user account, or a voice Discord has no account for | `platform` | "That account cannot send: {why}." |
+| a voice whose account is not held or not confirmed, or a voice Discord has no account for | `platform` | "That account cannot send: {why}." |
+| a voice on the owner's account in a room that account does not answer | `platform` | "The owner's account does not answer room {room}." |
+| a kind the owner's account does not send | `platform` | "The owner's account does not send a {kind}." |
+| an edit through the owner's account of a message it did not send | `platform` | "The owner's account did not send message {message}." |
+| a `human-avatar` send with no prefix | `platform` | "A human-avatar send needs a prefix, and neither the send nor BMO_DISCORD_AVATAR_PREFIX gives one." |
 | an edit, a reaction or a pin of a message this provider has not numbered | `platform` | "There is no message {message}." |
 | a sticker the pairing does not hold | `platform` | "No sticker is paired with {emoji}." |
 | a send the declaration does not carry | `unsupported-capability` | |
 
 ## Tests
 
-The declaration test holds the modes and the capabilities the service declares: `bot-account` the one mode
-active when its token is set, the three on a user account unsupported with the terms' words whatever is set,
-and the nine capabilities. The behaviour tests are deferred: no Discord test account is connected, so nothing
-here has been tried against a live Discord server.
+The declaration test holds the modes and the capabilities the service declares: `bot-account` active when its
+token is set, `human-reader` and `human-avatar` active once the gateway has confirmed the owner's account and
+inactive saying what they wait on otherwise, `own-account` unsupported with the terms' words whatever is set,
+and the nine capabilities, read from a stand-in gateway's answer about the owner's account. The room-modes test
+holds a room's voices narrowed to the active ones. The gateway's owner-account test, against a stand-in Discord,
+holds the confirmation (the named account confirmed; another account, a refused token and an unset token not),
+a room offered the owner's voices only while the account is confirmed, a `human-avatar` send going out behind
+the prefix and a `human-reader` send exactly as given, both on the bare user token, the bot account's send on
+its `Bot ` scheme, and a `human-avatar` send with no prefix refused. The rest of the behaviour tests are
+deferred: no Discord test account is connected, so nothing here, the owner's account least of all, has been
+tried against a live Discord server.

@@ -6,8 +6,8 @@
 // It reads by one account, the official bot account, on one socket. The bot is delivered a room's every
 // message where the application has been given the MESSAGE_CONTENT intent, which is privileged and asked
 // for in the developer portal; without it the gateway refuses the connection outright and says so
-// (`gateway.ts`). Discord's terms forbid automating a user account, the owner's or one made for the agent,
-// so the road holds no user token and never reads or answers through one.
+// (`gateway.ts`). The owner's own account, where its token is set, sends in the `human-reader` and
+// `human-avatar` voices at the provider's pace and reads nothing (docs/discord.md, 「The owner's account」).
 //
 // Ids: a channel, a person and a message are all snowflakes — 64-bit numbers above what a number
 // holds exactly — so the store numbers all three itself and the platform's ids stay strings.
@@ -15,17 +15,19 @@
 import { chatMachine } from "./machine";
 import { discordPolicy, discordWords, fillMarks, senderName } from "./settings";
 import { channelName, directRecipient, editMessage, pin, react, sendFile, sendImage, sendMessage, sendSticker, typing } from "./api";
-import { accountFor, botAccount, botTokenMissing, discordConfig, voiceMissing } from "./config";
+import { accountFor, accountIdFromToken, botAccount, botTokenMissing, discordConfig, isOwnerVoice, voiceMissing } from "./config";
 import { openGateway } from "./gateway";
+import { keepConfirming, onOwnerAccount, ownerConfirmation } from "./owner";
 import { Refusal, notReady, platformRefusal } from "./chat";
 
 import type { KeptMessage, Store } from "./store";
 import type { Service } from "./seam";
 import type { DiscordCall } from "./api";
-import type { DiscordAccount, DiscordConfig } from "./config";
+import type { DiscordAccount, DiscordConfig, OwnerVoice } from "./config";
 import type { DiscordMessage } from "./events";
 import type { DiscordSocket } from "./gateway";
-import type { ChatSendRequest, ChatSent, ProviderRoom } from "./chat";
+import type { OwnerConfirmation } from "./owner";
+import type { ChatSendRequest, ChatSent, ChatVoice, ProviderRoom } from "./chat";
 
 // The name this provider is known by: written onto every message it hands over, and the provider whose
 // rooms, people and messages the store numbers.
@@ -34,23 +36,47 @@ export const discordKey = "discord";
 // The kinds of send the provider performs, as its declaration carries them.
 const can = new Set(discordPolicy.can);
 
-// Whose account a token is, read out of the token. A token opens with the account's own user id in
-// base64 — a bot token with its application's, which is the bot's user id — so the road knows each
-// of its accounts before any connection is open, which is what a room's identity has to answer from.
-export function accountIdFromToken(token: string): string | null {
-  const head = token.split(".")[0];
+// The kinds the owner's account sends: words and the typing state.
+const ownerKinds = new Set(["text", "edit", "typing"]);
 
-  if (head === undefined || head === "") {
+// A send through the owner's account whose message has not yet been answered with its id: the nonce it went
+// with, and its channel and words, which is how its echo is known should the socket bring it back first.
+interface AwaitedEcho {
+  channelId: string;
+  nonce: string;
+  words: string;
+  voice: OwnerVoice;
+}
+
+const awaitedEchoes = new Set<AwaitedEcho>();
+
+// The words a send puts out in a voice: in `human-avatar` behind the prefix, followed by one space unless it
+// ends in one, and left as they are where they already begin with it; in any other voice exactly as given.
+export function wordsIn(voice: ChatVoice, words: string, prefix: string | null): string {
+  if (voice !== "human-avatar" || prefix === null || words.startsWith(prefix)) {
+    return words;
+  }
+
+  return /\s$/.test(prefix) ? `${prefix}${words}` : `${prefix} ${words}`;
+}
+
+// The prefix a send in a voice carries: the send's own, else the configured one, in `human-avatar`; none in
+// any other voice. A `human-avatar` send with neither is refused, so the owner's account never says the
+// agent's words unmarked.
+export function prefixFor(voice: ChatVoice, request: ChatSendRequest, discord: DiscordConfig): string | null {
+  if (voice !== "human-avatar") {
     return null;
   }
 
-  try {
-    const decoded = atob(head.replaceAll("-", "+").replaceAll("_", "/"));
+  const prefix = request.prefix === undefined || request.prefix === null || request.prefix === ""
+    ? discord.avatarPrefix
+    : request.prefix;
 
-    return /^\d+$/.test(decoded) ? decoded : null;
-  } catch {
-    return null;
+  if (prefix === null) {
+    throw platformRefusal("A human-avatar send needs a prefix, and neither the send nor BMO_DISCORD_AVATAR_PREFIX gives one.");
   }
+
+  return prefix;
 }
 
 async function roomOf(chatId: number): Promise<string | null> {
@@ -106,6 +132,40 @@ async function roomVoice(archive: Store, chatId: number): Promise<DiscordAccount
 // Whether this room is the owner's private chat with the agent.
 function isOwnerRoom(chatId: number, ownerRoom: number | null): boolean {
   return ownerRoom !== null && chatId === ownerRoom;
+}
+
+// Whether the owner's account answers a room: it is held and confirmed, it has been heard in the room, and the
+// room is not the owner's one-to-one with the agent.
+async function ownerAnswers(archive: Store, discord: DiscordConfig, chatId: number): Promise<boolean> {
+  return accountFor(discord, "human-reader") !== null
+    && ownerConfirmation().confirmed
+    && !isOwnerRoom(chatId, await discordProvider.ownerRoom())
+    && await archive.chats().ownerHeard(discordKey, chatId);
+}
+
+// The voices whose account answers a room: the bot account's in every room, and the owner's account's besides
+// where it answers the room.
+async function voicesIn(archive: Store, discord: DiscordConfig, chatId: number): Promise<ChatVoice[]> {
+  return await ownerAnswers(archive, discord, chatId)
+    ? ["bot-account", "human-reader", "human-avatar"]
+    : ["bot-account"];
+}
+
+// The voice a message the owner's account wrote went out in, where this provider sent it: known by the nonce
+// it went with or its words while its send awaits an answer, and by the store's mark once it has one.
+async function ownerSendOf(archive: Store, chatId: number, message: DiscordMessage): Promise<OwnerVoice | null> {
+  for (const awaited of awaitedEchoes) {
+    if (
+      (message.nonce !== null && message.nonce === awaited.nonce)
+      || (message.channelId === awaited.channelId && message.text === awaited.words)
+    ) {
+      return awaited.voice;
+    }
+  }
+
+  const voice = await archive.messages().ownerSendVoice(discordKey, chatId, message.messageId);
+
+  return voice !== null && isOwnerVoice(voice) ? voice : null;
 }
 
 // Who the agent is in a room: the bot account, which answers every room.
@@ -174,8 +234,16 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
 
   await archive.chats().setRoomVoice(discordKey, chatId, account.voice);
 
-  const own = message.authorId !== "" && message.authorId === agentAccountId(discord);
   const fromOwner = message.authorId !== "" && message.authorId === discord.ownerUserId;
+  // A message the owner's account wrote is this provider's own where it sent it, and otherwise shows the
+  // owner's account is in the room.
+  const ownerSent = fromOwner ? await ownerSendOf(archive, chatId, message) : null;
+  const own = (message.authorId !== "" && message.authorId === agentAccountId(discord)) || ownerSent !== null;
+
+  if (fromOwner && ownerSent === null) {
+    await archive.chats().markOwnerHeard(discordKey, chatId);
+  }
+
   const senderId = fromOwner
     ? await ownerNumber(archive, discord)
     : await archive.providerNumbers().providerSenderId(discordKey, message.authorId);
@@ -187,7 +255,7 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
     message: {
       origin,
       senderId,
-      senderName: own ? senderName() : message.authorName,
+      senderName: own && ownerSent !== "human-reader" ? senderName() : message.authorName,
       sentAt: message.sentAt,
       text: wordsOf(message),
       replyToMessageId: message.replyToId === null
@@ -195,7 +263,7 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
         : await archive.messages().messageIdOf(discordKey, chatId, message.replyToId),
       via: discordKey,
       album: null,
-      mode: account.voice,
+      mode: ownerSent ?? account.voice,
       context: {
         senderUsername: message.authorName,
         spokenText: message.text,
@@ -249,6 +317,7 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
 }
 
 let socket: DiscordSocket | null = null;
+let stopConfirming: (() => void) | null = null;
 
 // What the gateway's routes ask of the provider (docs/api.md, 「Rooms」, 「Sends」 and 「Health」).
 export interface DiscordProvider {
@@ -258,6 +327,7 @@ export interface DiscordProvider {
   stop(): void;
   room(chatId: number): Promise<ProviderRoom | null>;
   ownerRoom(): Promise<number | null>;
+  ownerAccount(): OwnerConfirmation;
   send(request: ChatSendRequest): Promise<ChatSent>;
 }
 
@@ -290,6 +360,8 @@ export const discordProvider: DiscordProvider = {
       return;
     }
 
+    stopConfirming = keepConfirming(discord);
+
     const account = botAccount(discord);
     const road: DiscordRoad = { discord, archive: deps.archive, service: deps.service, account };
 
@@ -305,7 +377,12 @@ export const discordProvider: DiscordProvider = {
   stop() {
     socket?.stop();
     socket = null;
+    stopConfirming?.();
+    stopConfirming = null;
   },
+
+  // Whether the gateway has confirmed the owner's account, from its last check; no call is made to answer.
+  ownerAccount: () => (discordConfig() === null ? { confirmed: false, reason: botTokenMissing } : ownerConfirmation()),
 
   // What the provider knows of a room, or null where the number is not one of its rooms.
   async room(chatId) {
@@ -326,6 +403,7 @@ export const discordProvider: DiscordProvider = {
       kind: isOwnerRoom(chatId, await discordProvider.ownerRoom()) ? "owner" : "group",
       privateTo: await archive.chats().privateRoomPerson(discordKey, chatId),
       title: await roomTitle(channel),
+      modes: await voicesIn(archive, discord, chatId),
     };
   },
 
@@ -362,15 +440,33 @@ export const discordProvider: DiscordProvider = {
     }
 
     // The voice this send speaks with — the one it names, else the room's, else the bot's — and the account
-    // that voice is. A voice on a user account has none.
+    // that voice is. An account made for the agent is never held.
     const voice = request.mode ?? await roomVoice(archive, request.roomId) ?? "bot-account";
     const account = accountFor(discord, voice);
 
     if (account === null) {
-      throw platformRefusal(`That account cannot send: ${voiceMissing(voice)}.`);
+      throw platformRefusal(`That account cannot send: ${voiceMissing(discord, voice)}.`);
     }
 
-    const api = { token: account.token };
+    if (!account.bot) {
+      const owner = ownerConfirmation();
+
+      if (!owner.confirmed) {
+        throw platformRefusal(`That account cannot send: ${owner.reason ?? "the owner's account is not confirmed"}.`);
+      }
+
+      if (!ownerKinds.has(request.kind)) {
+        throw platformRefusal(`The owner's account does not send a ${request.kind}.`);
+      }
+
+      if (!await ownerAnswers(archive, discord, request.roomId)) {
+        throw platformRefusal(`The owner's account does not answer room ${request.roomId}.`);
+      }
+    }
+
+    // Every call on the owner's account keeps the provider's pace; the bot account's go as they come.
+    const paced = <T>(work: () => Promise<T>): Promise<T> =>
+      account.bot ? work() : onOwnerAccount(discord, work);
     // Every kind that points at a message points at one of the store's numbers, and what goes out has to
     // name the platform's own.
     const nativeOf = async (messageId: number): Promise<string | null> =>
@@ -378,11 +474,14 @@ export const discordProvider: DiscordProvider = {
 
     if (request.kind === "typing") {
       if (request.fields.on) {
-        await typing(api, channelId);
+        await paced(() => typing(account, channelId));
       }
 
       return { messageId: null, missed: [] };
     }
+
+    // The prefix the words of this send go out behind, which only words need.
+    const prefix = prefixFor(voice, request, discord);
 
     if (request.kind === "reaction" || request.kind === "pin" || request.kind === "edit") {
       const native = await nativeOf(request.fields.messageId);
@@ -393,11 +492,18 @@ export const discordProvider: DiscordProvider = {
 
       if (request.kind === "reaction") {
         // An empty emoji takes the agent's own reaction off, which is the same path the other way.
-        await react(api, channelId, native, request.fields.emoji, request.fields.emoji !== "");
+        await react(account, channelId, native, request.fields.emoji, request.fields.emoji !== "");
       } else if (request.kind === "pin") {
-        await pin(api, channelId, native, request.fields.on);
+        await pin(account, channelId, native, request.fields.on);
       } else {
-        await editMessage(api, channelId, native, request.fields.text);
+        // The owner's account edits only what it sent here itself.
+        if (!account.bot && await archive.messages().ownerSendVoice(discordKey, request.roomId, native) === null) {
+          throw platformRefusal(`The owner's account did not send message ${request.fields.messageId}.`);
+        }
+
+        const words = wordsIn(voice, request.fields.text, prefix);
+
+        await paced(() => editMessage(account, channelId, native, words));
       }
 
       return { messageId: request.fields.messageId, missed: [] };
@@ -406,7 +512,10 @@ export const discordProvider: DiscordProvider = {
     const replyTo = request.replyToMessageId === undefined || request.replyToMessageId === null
       ? null
       : await nativeOf(request.replyToMessageId);
-    const sent = await outgoing(api, channelId, discord, request, replyTo);
+    const ownerVoice = account.voice;
+    const sent = isOwnerVoice(ownerVoice)
+      ? await paced(() => ownerWords(archive, request.roomId, ownerVoice, account, channelId, request, replyTo, prefix))
+      : await outgoing(account, channelId, discord, request, replyTo);
 
     if (sent.id === null) {
       return { messageId: null, missed: [] };
@@ -419,6 +528,40 @@ export const discordProvider: DiscordProvider = {
     return { messageId, missed: [] };
   },
 };
+
+// The one call a send of words through the owner's account turns into: the words in its voice, sent with a
+// nonce and awaited back until the store holds the message's id as sent through the owner's account.
+async function ownerWords(
+  archive: Store,
+  chatId: number,
+  voice: OwnerVoice,
+  api: DiscordCall,
+  channelId: string,
+  request: ChatSendRequest,
+  replyTo: string | null,
+  prefix: string | null,
+): Promise<{ id: string | null }> {
+  if (request.kind !== "text") {
+    throw platformRefusal(`The owner's account does not send a ${request.kind}.`);
+  }
+
+  const words = wordsIn(voice, request.fields.text, prefix);
+  const awaited: AwaitedEcho = { channelId, nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 25), words, voice };
+
+  awaitedEchoes.add(awaited);
+
+  try {
+    const id = await sendMessage(api, channelId, words, replyTo, awaited.nonce);
+
+    if (id !== null) {
+      await archive.messages().markOwnerSend(discordKey, chatId, id, voice);
+    }
+
+    return { id };
+  } finally {
+    awaitedEchoes.delete(awaited);
+  }
+}
 
 // The one call a send of words, a picture, a file or a sticker turns into. A sticker this application has
 // not been given an id for is refused by name rather than sent as nothing.

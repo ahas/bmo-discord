@@ -1,7 +1,8 @@
 // The provider's own numbers (docs/discord.md, 「Numbering」): a Discord id is a snowflake, larger than a
 // number holds exactly, so every channel, person and message is given a number here and the snowflake stays a
 // string. The store also keeps which messages have been handed over, so a message two sockets read goes once,
-// the voice each room is answered by, and the one person of each DM channel. It is this provider's alone, so
+// the voice each room is answered by, the one person of each DM channel, the rooms the owner has been heard in,
+// and the messages sent through the owner's account. It is this provider's alone, so
 // the provider key each call names is always this provider's.
 
 import { Database } from "bun:sqlite";
@@ -66,6 +67,15 @@ const schema = `
   CREATE TABLE IF NOT EXISTS private_rooms (
     chat_id INTEGER PRIMARY KEY,
     sender_id INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS owner_rooms (
+    chat_id INTEGER PRIMARY KEY
+  );
+  CREATE TABLE IF NOT EXISTS owner_sends (
+    chat_id INTEGER NOT NULL,
+    native_id TEXT NOT NULL,
+    voice TEXT NOT NULL,
+    PRIMARY KEY (chat_id, native_id)
   );
 `;
 
@@ -240,6 +250,20 @@ export class Store {
 
       // Takes the mark off again where the hand-over did not go, so the next socket offers it again.
       unmarkHandedOver,
+
+      // Writes down that a message went out through the owner's account, in this voice.
+      markOwnerSend: async (_provider: string, chatId: number, nativeId: string, voice: string): Promise<void> => {
+        db.query("INSERT INTO owner_sends (chat_id, native_id, voice) VALUES ($chatId, $nativeId, $voice) ON CONFLICT DO NOTHING")
+          .run({ chatId, nativeId, voice });
+      },
+
+      // The voice a message went out in through the owner's account, or null where it did not go out that way.
+      ownerSendVoice: async (_provider: string, chatId: number, nativeId: string): Promise<string | null> => {
+        const row = db.query("SELECT voice FROM owner_sends WHERE chat_id = $chatId AND native_id = $nativeId")
+          .get({ chatId, nativeId }) as { voice: string } | null;
+
+        return row?.voice ?? null;
+      },
     };
   }
 
@@ -281,6 +305,15 @@ export class Store {
           "INSERT INTO private_rooms (chat_id, sender_id) VALUES ($chatId, $senderId) ON CONFLICT (chat_id) DO UPDATE SET sender_id = excluded.sender_id",
         ).run({ chatId, senderId });
       },
+
+      // Writes down that the owner's account has been heard in a room, which shows it is in the room.
+      markOwnerHeard: async (_provider: string, chatId: number): Promise<void> => {
+        db.query("INSERT INTO owner_rooms (chat_id) VALUES ($chatId) ON CONFLICT DO NOTHING").run({ chatId });
+      },
+
+      // Whether the owner's account has been heard in a room.
+      ownerHeard: async (_provider: string, chatId: number): Promise<boolean> =>
+        db.query("SELECT 1 FROM owner_rooms WHERE chat_id = $chatId").get({ chatId }) !== null,
     };
   }
 }

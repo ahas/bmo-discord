@@ -99,6 +99,14 @@ function rustMethod(operation: Operation): string {
 `;
   }
 
+  if (operation.name === "ownerAccount") {
+    return `  /// Whether the gateway has confirmed the owner's account, and where it has not, why.
+  pub async fn owner_account(&self) -> Result<${operation.answer}, GatewayFailure> {
+    self.call(Method::${operation.method}, "${path}", None::<&()>).await
+  }
+`;
+  }
+
   throw new Error(`No Rust client template for ${operation.name}, from docs/openapi.json.`);
 }
 

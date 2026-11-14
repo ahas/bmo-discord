@@ -199,6 +199,40 @@
         }
       }
     },
+    "/owner-account": {
+      "get": {
+        "operationId": "ownerAccount",
+        "summary": "Whether the gateway has confirmed the owner's account",
+        "x-call": {
+          "language": "rust",
+          "name": "ownerAccount",
+          "answer": "ChatHealth"
+        },
+        "responses": {
+          "200": {
+            "description": "Whether the owner's account is confirmed (`ready`), why not where it is not, and the gateway's version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/ChatHealth"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The error shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/WireError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Answered from the gateway's last confirmation of the owner's account with Discord (docs/discord.md, 「The owner's account」); answering it makes no call on Discord."
+      }
+    },
     "/rooms/{roomId}/messages/{messageId}": {
       "put": {
         "operationId": "handOver",

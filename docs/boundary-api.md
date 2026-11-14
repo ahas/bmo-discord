@@ -10,9 +10,10 @@ The provider is two processes of one repository:
 - **the service**, the Rust package at the root. It is the chat provider bmo-chat's contract describes: it
   declares the provider, runs the `discord-markdown` dialect, serves the protocol's provider routes and hands
   what its rooms say to the receiver. It is the only process another unit talks to.
-- **the gateway**, the bun package in `gateway/`. It holds the bot account's gateway socket and makes
-  every REST call to Discord: it reads the rooms, performs the sends, answers the room questions and keeps the
-  provider's own numbers (`docs/discord.md`, 「Numbering」). Only the service calls it, over the loopback.
+- **the gateway**, the bun package in `gateway/`. It holds the bot account's gateway socket and the owner's
+  account's token, and makes every REST call to Discord: it reads the rooms, performs the sends, answers the
+  room questions and keeps the provider's own numbers (`docs/discord.md`, 「Numbering」). Only the service calls
+  it, over the loopback.
 
 ```mermaid
 flowchart LR
@@ -77,8 +78,9 @@ one. A failure is answered with the protocol's error shape.
 |---|---|---|
 | `GET /health` | | `ready` (boolean), `reason` (string or null) and `version` |
 | `POST /sends` | the protocol's `ChatSendRequest`, of a kind the declaration carries | 201 with `messageId` and `missed`; a refusal or a failure in the error shape |
-| `GET /rooms/{roomId}` | | the protocol's `ProviderRoom` but its `modes`, which the service fills from its declaration; 404 `not-found` where the number is not this provider's |
+| `GET /rooms/{roomId}` | | the protocol's `ProviderRoom`, its `modes` the voices whose account answers the room; the service keeps those its declaration has active. 404 `not-found` where the number is not this provider's |
 | `GET /owner` | | the protocol's `ProviderOwner`: `roomId` (number or null) |
+| `GET /owner-account` | | the protocol's `ChatHealth` read for the owner's account: `ready` once the gateway has confirmed it with Discord, `reason` why not, and `version` |
 
 ### The service's route, called by the gateway
 
@@ -100,14 +102,24 @@ The platform's own, kept as they have always been named:
 | Variable | Read by | Meaning |
 |---|---|---|
 | `BMO_DISCORD_TOKEN` | both | the application's bot token; the `bot-account` mode is inactive without it |
-| `BMO_DISCORD_OWNER_ID` | gateway | the owner's Discord account id, so the owner's words are filed under the owner's number |
+| `BMO_DISCORD_OWNER_ID` | gateway | the owner's Discord account id, so the owner's words are filed under the owner's number; the owner's account is confirmed only as this account |
 | `BMO_DISCORD_OWNER_CHANNEL` | gateway | the DM channel that is the owner's one-to-one with the agent; a channel says it is a DM, never whose |
 | `BMO_DISCORD_STICKERS` | gateway | the agent's stickers as `emoji:id` pairs separated by commas; a sticker asked for by an emoji not paired is refused |
 
-Without `BMO_DISCORD_TOKEN` the provider is not configured and says so, and the `bot-account` mode stays down.
-No setting stands up the `human-reader`, `human-avatar` or `own-account` mode: all three are on a user account
-and declared `unsupported` (`docs/discord.md`, 「The declaration」), and the provider reads no user account's
-token.
+Without `BMO_DISCORD_TOKEN` the provider is not configured and says so, and every mode stays down.
+
+The owner's account, which the `human-reader` and `human-avatar` modes send through (`docs/discord.md`, 「The
+owner's account」). An operator who stands them up sets the owner's token and id beside the bot token, and the
+gateway confirms the account with Discord before either mode stands; the prefix and the pace are optional:
+
+| Variable | Read by | Meaning |
+|---|---|---|
+| `BMO_DISCORD_OWNER_TOKEN` | gateway | the owner's own user token; the owner's account modes are inactive until the gateway has confirmed with Discord that it is the account `BMO_DISCORD_OWNER_ID` names |
+| `BMO_DISCORD_AVATAR_PREFIX` | gateway | the agent's prefix a `human-avatar` send carries where the send names none |
+| `BMO_DISCORD_OWNER_PACE_MS` | gateway | the least time, in milliseconds, between one call on the owner's account ending and the next starting; `owner_pace_ms` in `policy/discord.toml` where unset |
+
+No setting stands up the `own-account` mode: it is on an account made for the agent and declared
+`unsupported` (`docs/discord.md`, 「The declaration」).
 
 This provider's own:
 
@@ -121,6 +133,7 @@ This provider's own:
 | `BMO_DISCORD_DATA` | gateway | the provider's own data folder, inside no checkout; it holds the number store. Required |
 | `BMO_DISCORD_SENDER_NAME` | gateway | the name the agent's own words are handed over under |
 | `BMO_DISCORD_CLIENT_NAME` | gateway | the client name the bot account's socket identifies itself with to Discord |
+| `BMO_DISCORD_API_URL` | gateway | the REST address every call goes to; Discord's own, `https://discord.com/api/v10`, where unset. The gateway's tests name a stand-in's here |
 
 ## Commands
 
@@ -144,6 +157,11 @@ published clients, `bmo-chat` and `bmo-chat-client`; this repository writes no c
 Statements this provider's callers rely on that a sibling's document does not yet match, each for that sibling
 to take up:
 
+- **bmo-chat's contract says a platform whose terms forbid automating a person's account declares
+  `human-avatar` `unsupported`.** Discord's terms do forbid it, and this provider declares `human-avatar` and
+  `human-reader` on the owner's account all the same, standing on his own settings, because the owner has
+  decided to run his own account here at his own risk. The contract's sentence leaves no room for a person who
+  accepts that risk for his own account; until it does, this provider departs from it on that point alone.
 - **bmo-chat publishes no TypeScript client.** Its two Rust crates serve a Rust provider, and the gateway's
   protocol pieces (`gateway/src/chat.ts`) are written here from bmo-chat's `docs/contract.md` and
   `docs/protocol.md`. Until a TypeScript package is published, a change in those shapes is matched here by

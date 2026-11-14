@@ -2,14 +2,18 @@
 
 The Discord chat provider, `bmo-discord`. It is Discord to the chat receiver, through the chat protocol of the
 base library `bmo-chat`: it declares its read modes, what it can do and the dialect its rooms read, reads its
-rooms through the bot account, sends the verbs it declares, and hands what its rooms say to the receiver. No
-mode runs on a user account: Discord's terms forbid automating one.
+rooms through the bot account, sends the verbs it declares, and hands what its rooms say to the receiver. The
+owner's own account sends in the `human-reader` and `human-avatar` voices once the gateway has confirmed it; no
+account made for the agent is run, since Discord's terms forbid automating one.
 
 ## Tests and the test account
 
-- **The behaviour tests are deferred.** This phase moves the code only; the suite holds the repository-wide
-  personal-data check and the declaration test.
-- **The declaration test** holds the modes and the capabilities the service declares, whatever tokens are set.
+- **Most behaviour tests are deferred.** The suite holds the repository-wide personal-data check, the
+  declaration and room-modes tests, and the gateway's owner-account test against a stand-in Discord.
+- **The declaration test** holds the modes and the capabilities the service declares, whatever tokens are set
+  and whatever the gateway answers about the owner's account.
+- **The owner-account test** (`gateway/tests/`) holds the gateway's confirmation of the owner's account and the
+  prefix a `human-avatar` send carries, which a `human-reader` send does not.
 - **The personal-data check reads every tracked file** for a mail address, a home path, a telephone number, a
   token and a private network address, and names the file, the line and the kind of each finding
   (`PERSONAL-DATA.md`).
@@ -20,8 +24,8 @@ mode runs on a user account: Discord's terms forbid automating one.
 | Folder | Holds |
 |---|---|
 | `src/` | the service's own package: the declaration, the `discord-markdown` dialect, the protocol's routes, the receiver link and the generated client of the gateway (`seam.rs`) |
-| `gateway/` | the gateway, a bun package holding the bot account's socket, the REST calls, the provider's number store and the generated client of the service (`seam.ts`) |
-| `policy/` | the provider's fixed values: its capabilities, the terms' words the modes on a user account are declared unsupported with, the ranges its numbers fall in, and its dialect's limit and writing sentence |
+| `gateway/` | the gateway, a bun package holding the bot account's socket, the owner's account's token, the REST calls, the provider's number store and the generated client of the service (`seam.ts`), with its tests in `gateway/tests/` |
+| `policy/` | the provider's fixed values: its capabilities, the terms' words the `own-account` mode is declared unsupported with, the owner's account's pace, the ranges its numbers fall in, and its dialect's limit and writing sentence |
 | `lang/` | the words a person reads that this provider draws: the platform's label and the marks a message is handed over with |
 | `tools/` | `generate.ts`, which writes both clients from `docs/openapi.json` |
 | `deploy/` | the two service units a deployment links: the Rust service and the bun gateway |

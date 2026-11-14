@@ -57,6 +57,12 @@ async function answer(request: Request): Promise<Response> {
     return Response.json({ ready: missing === null, reason: missing, version: packageFile.version });
   }
 
+  if (request.method === "GET" && path === "/owner-account") {
+    const owner = discordProvider.ownerAccount();
+
+    return Response.json({ ready: owner.confirmed, reason: owner.reason, version: packageFile.version });
+  }
+
   if (request.method === "GET" && path === "/owner") {
     return Response.json({ roomId: await discordProvider.ownerRoom() });
   }

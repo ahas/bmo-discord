@@ -21,6 +21,7 @@ use crate::seam::{Gateway, GatewayFailure};
 pub const KEY: &str = "discord";
 
 const BOT_TOKEN_MISSING: &str = "BMO_DISCORD_TOKEN not set";
+const OWNER_UNANSWERED: &str = "the gateway has not said whether the owner's account is confirmed";
 
 /// How often the gateway is asked whether it is ready.
 const HEALTH_EVERY: Duration = Duration::from_secs(5);
@@ -31,6 +32,8 @@ pub struct DiscordProvider {
   gateway: Gateway,
   /// The gateway's last answer about its health.
   gateway_health: Arc<RwLock<ChatHealth>>,
+  /// Why the owner's account is not confirmed, from the gateway's last answer; none once it is.
+  owner_unconfirmed: Arc<RwLock<Option<String>>>,
   watching: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -44,11 +47,12 @@ impl DiscordProvider {
         env!("CARGO_PKG_VERSION"),
         "the gateway has not answered yet",
       ))),
+      owner_unconfirmed: Arc::new(RwLock::new(Some(OWNER_UNANSWERED.to_owned()))),
       watching: Mutex::new(None),
     }
   }
 
-  /// The voices a room is read by and may be sent in: the declaration's active ones, alike in every room.
+  /// The voices the declaration has active.
   fn active_voices(&self) -> Vec<ChatVoice> {
     self
       .modes()
@@ -58,24 +62,60 @@ impl DiscordProvider {
       .collect()
   }
 
-  /// The mode on the bot account, which stands on its token: active where the token is set, and waiting on
-  /// it, said by name, where it is not. An answer can be pinned to what it delivered.
-  fn bot_mode(missing: Option<&str>) -> ChatReadMode {
-    ChatReadMode {
-      voice: ChatVoice::BotAccount,
-      reach: ChatReach::AllMessages,
-      standing: if missing.is_none() { ChatModeStanding::Active } else { ChatModeStanding::Inactive },
-      reason: missing.map(str::to_owned),
-      can_reply_to: true,
+  /// The first setting the bot account is missing, or none where its token is set.
+  fn bot_missing(&self) -> Option<&'static str> {
+    (!self.config.bot_token).then_some(BOT_TOKEN_MISSING)
+  }
+
+  /// What the owner's account waits on: the bot account's setting first, since what the owner's account says
+  /// is read back on the bot's socket, then the gateway's confirmation of the account.
+  fn owner_missing(&self) -> Option<String> {
+    self.bot_missing().map(str::to_owned).or_else(|| {
+      self
+        .owner_unconfirmed
+        .read()
+        .map_or_else(|_| Some(OWNER_UNANSWERED.to_owned()), |held| held.clone())
+    })
+  }
+
+  /// Asks the gateway whether it has confirmed the owner's account, and holds the answer the owner's account
+  /// modes stand on. A gateway that does not answer leaves them waiting on it.
+  pub async fn read_owner_account(&self) {
+    Self::hold_owner_account(&self.gateway, &self.owner_unconfirmed).await;
+  }
+
+  async fn hold_owner_account(gateway: &Gateway, held: &RwLock<Option<String>>) {
+    let answer = gateway.owner_account().await.map_or_else(
+      |why| Some(format!("the gateway does not answer about the owner's account: {why}")),
+      |answer| {
+        (!answer.ready)
+          .then(|| answer.reason.unwrap_or_else(|| "the owner's account is not confirmed".to_owned()))
+      },
+    );
+
+    if let Ok(mut held) = held.write() {
+      *held = answer;
     }
   }
 
-  /// A mode on a user account, the owner's or one made for the agent, which Discord's terms forbid
-  /// automating: unsupported whatever is set, with the terms' words as its reason. It delivers nothing, so
-  /// nothing of it can be answered pinned.
-  fn user_account_mode(voice: ChatVoice) -> ChatReadMode {
+  /// A mode standing on its account: active where it waits on nothing, and waiting on what it does, said by
+  /// name, where it waits on something.
+  fn account_mode(voice: ChatVoice, missing: Option<&str>, can_reply_to: bool) -> ChatReadMode {
     ChatReadMode {
       voice,
+      reach: ChatReach::AllMessages,
+      standing: if missing.is_none() { ChatModeStanding::Active } else { ChatModeStanding::Inactive },
+      reason: missing.map(str::to_owned),
+      can_reply_to,
+    }
+  }
+
+  /// The mode on an account made for the agent, which Discord's terms forbid automating: unsupported whatever
+  /// is set, with the terms' words as its reason. It delivers nothing, so nothing of it can be answered
+  /// pinned.
+  fn own_account_mode() -> ChatReadMode {
+    ChatReadMode {
+      voice: ChatVoice::OwnAccount,
       reach: ChatReach::AllMessages,
       standing: ChatModeStanding::Unsupported,
       reason: Some(POLICY.user_accounts.clone()),
@@ -189,13 +229,15 @@ impl ChatProvider for DiscordProvider {
   }
 
   fn configured(&self) -> Option<String> {
-    (!self.config.bot_token).then(|| BOT_TOKEN_MISSING.to_owned())
+    self.bot_missing().map(str::to_owned)
   }
 
-  /// The gateway reads the rooms; the service only keeps asking it whether it is ready.
+  /// The gateway reads the rooms; the service only keeps asking it whether it is ready and whether it has
+  /// confirmed the owner's account.
   async fn start(&self, _receiver: Arc<dyn ChatReceiver>) -> Result<(), ChatFailure> {
     let gateway = self.gateway.clone();
     let health = self.gateway_health.clone();
+    let owner = self.owner_unconfirmed.clone();
     let version = self.version().to_owned();
     let watching = tokio::spawn(async move {
       loop {
@@ -210,6 +252,8 @@ impl ChatProvider for DiscordProvider {
         if let Ok(mut held) = health.write() {
           *held = answer;
         }
+
+        Self::hold_owner_account(&gateway, &owner).await;
 
         tokio::time::sleep(HEALTH_EVERY).await;
       }
@@ -245,19 +289,21 @@ impl ChatProvider for DiscordProvider {
     )
   }
 
-  /// The bot account's mode stands on its token, read as the service starts; the modes on a user account
-  /// stand on nothing.
+  /// The bot account's mode stands on its token, read as the service starts; the owner's account's on the
+  /// gateway's confirmation of it, read as the service runs.
   fn modes(&self) -> Vec<ChatReadMode> {
+    let owner = self.owner_missing();
+
     vec![
       // The official bot account, delivered a room's every message. What it needs besides the token is the
       // MESSAGE_CONTENT intent, which is privileged: an application that has not been given it is refused at
-      // the gateway rather than quietly handed empty messages.
-      Self::bot_mode((!self.config.bot_token).then_some(BOT_TOKEN_MISSING)),
-      // The owner's own account, read and answered in, and an account made for the agent: the platform's
-      // terms forbid automating either.
-      Self::user_account_mode(ChatVoice::HumanReader),
-      Self::user_account_mode(ChatVoice::HumanAvatar),
-      Self::user_account_mode(ChatVoice::OwnAccount),
+      // the gateway rather than quietly handed empty messages. An answer can be pinned to what it delivered.
+      Self::account_mode(ChatVoice::BotAccount, self.bot_missing(), true),
+      // The owner's own account, sending in his own words and in the agent's behind its prefix. It reads
+      // nothing itself, so nothing it delivered can be answered pinned.
+      Self::account_mode(ChatVoice::HumanReader, owner.as_deref(), false),
+      Self::account_mode(ChatVoice::HumanAvatar, owner.as_deref(), false),
+      Self::own_account_mode(),
     ]
   }
 
@@ -287,12 +333,21 @@ impl ChatProvider for DiscordProvider {
     }
   }
 
+  /// The gateway's room, its `modes` narrowed to the voices the declaration has active.
   async fn room(&self, room_id: i64) -> Result<Option<ProviderRoom>, ChatFailure> {
     match self.gateway.room(room_id).await {
-      Ok(room) => Ok(Some(ProviderRoom {
-        modes: Some(self.active_voices()),
-        ..room
-      })),
+      Ok(room) => {
+        let active = self.active_voices();
+        let modes = match room.modes {
+          Some(answering) => answering.into_iter().filter(|voice| active.contains(voice)).collect(),
+          None => active,
+        };
+
+        Ok(Some(ProviderRoom {
+          modes: Some(modes),
+          ..room
+        }))
+      }
       Err(GatewayFailure::Answered { status: 404, .. }) => Ok(None),
       Err(failure) => Err(failure.into()),
     }

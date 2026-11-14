@@ -40,7 +40,7 @@ pub struct DialectPolicy {
 pub struct Policy {
   /// What the provider sends, as its declaration's `can`.
   pub can: BTreeSet<ChatCapability>,
-  /// Discord's terms on automating a user account: why the modes on a user account are unsupported.
+  /// Discord's terms on automating a user account: why the `own-account` mode is unsupported.
   pub user_accounts: String,
   pub numbering: NumberingPolicy,
   pub dialect: DialectPolicy,

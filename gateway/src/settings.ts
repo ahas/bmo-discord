@@ -14,6 +14,8 @@ export interface NumberRange {
 export interface DiscordPolicy {
   can: string[];
   user_accounts: string;
+  owner_pace_ms: number;
+  owner_confirm_ms: number;
   numbering: { rooms: NumberRange; people: NumberRange };
 }
 
