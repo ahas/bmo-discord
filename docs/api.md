@@ -21,7 +21,9 @@ here exactly as they state them.
   calls; both processes listen on `127.0.0.1` only and every route takes `BMO_DISCORD_ROUTE_TOKEN` as its
   bearer, answering 401 without it.
 
-The provider declares `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing` and `edit`.
+The provider declares `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing` and `edit`;
+`peopleTyping` while the bot account's socket runs, and `presence` while it runs with the presence intent
+granted (`docs/discord.md`, 「Typing and presence」).
 It declares no `fetchMedia`, no `avatars`, no `history`, no `roomList` and no album, audio, voice or delete
 send, so the base refuses those before this provider is asked.
 
@@ -72,6 +74,15 @@ setting missing while it is not.
 The gateway answers from its last confirmation and makes no call on Discord to answer it; how it confirms the
 account is `docs/discord.md`, 「The owner's account」.
 
+## What the socket hears
+
+| Route | Answers |
+|---|---|
+| `GET /hearing` | `peopleTyping` and `presence`, each `heard` (boolean) and `reason` (why not, null while heard) |
+
+`peopleTyping` is heard while the bot account's socket runs, and `presence` while it runs with the presence
+intent granted. The gateway answers from what it holds and makes no call on Discord to answer it.
+
 ## Rooms
 
 | Route | Query | Answers |
@@ -97,6 +108,9 @@ declaration has active, and with every active voice where the gateway names none
 | `POST /sends` | a send as bmo-chat's `docs/contract.md` states it: `roomId`, `kind`, the kind's `fields`, and optional `mode`, `speaker`, `tag`, `prefix` and `replyToMessageId` | 201 with `messageId` (null where Discord gives none back) and `missed` (empty, since no album goes) |
 | | | A send that does not go is answered with the refusal's code and status |
 
+A `typing` send that names an `accountId` is refused `platform`: a person's typing goes only in their own
+voice, and this provider types only as the bot account and the owner's account.
+
 A send whose `mode` names `human-reader` or `human-avatar` goes out through the owner's account, at the
 provider's pace, in a room that account answers, and only as `text`, `edit` or `typing`. `prefix` belongs to the
 `human-avatar` voice: its words go out behind it, or behind `BMO_DISCORD_AVATAR_PREFIX` where the send names
@@ -120,3 +134,13 @@ never offered again.
 The provider hands over `live` and `edit` messages under their room and number; it declares no `history`, so
 no past message is read back. A message that carried a file crosses as a mark in `text` with
 `context.carriesFile`; no bytes cross, since the provider declares no `fetchMedia`.
+
+## Typing and presence
+
+| Route | Body | Answers |
+|---|---|---|
+| `POST /typing-marks` | a typing mark as bmo-chat's `docs/contract.md` states it: `via`, `roomId`, `personId`, `on` and `lastsMs` | 204, told where the receiving side listens to the room and passed over where it does not |
+| `POST /presence-changes` | `via`, `whole`, and `people`, each `personId`, `state`, `lastSeenAt` and `roomIds`, the rooms the person stands in | 204, the people who stand in a room the receiving side listens to told as a presence change |
+
+A failure of the receiving side is answered with its own error shape and status. The gateway offers a presence
+change again while nothing listens at the service, every two seconds, and a typing mark once.

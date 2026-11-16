@@ -20,15 +20,27 @@ export const gatewayOps = {
   heartbeatAck: 11,
 } as const;
 
-// What this road asks to be sent: the guilds it is in, their messages, direct messages, and the
-// content of a message. The last one is privileged — an application over a hundred servers is
-// reviewed for it — and without it a guild message arrives with its content empty, which is why
-// the road says so plainly rather than reading empty words as a quiet room.
+// What this road asks to be sent: the guilds it is in, their messages, direct messages, the content
+// of a message, who is typing in a guild channel or a direct message, and, while the application has
+// been granted it, the guild members' presence. Content is privileged — an application over a hundred
+// servers is reviewed for it — and without it a guild message arrives with its content empty, which is
+// why the road says so plainly rather than reading empty words as a quiet room. Presence is privileged
+// too, and a socket that asks for it ungranted is refused outright, so it is asked for only once granted.
 export const guildsIntent = 1 << 0;
+export const guildPresencesIntent = 1 << 8;
 export const guildMessagesIntent = 1 << 9;
+export const guildMessageTypingIntent = 1 << 11;
 export const directMessagesIntent = 1 << 12;
+export const directMessageTypingIntent = 1 << 14;
 export const messageContentIntent = 1 << 15;
-export const gatewayIntents = guildsIntent | guildMessagesIntent | directMessagesIntent | messageContentIntent;
+
+// The intents an identify names, the presence intent among them only where `presence` says so.
+export function gatewayIntents(presence: boolean): number {
+  const always = guildsIntent | guildMessagesIntent | directMessagesIntent | messageContentIntent
+    | guildMessageTypingIntent | directMessageTypingIntent;
+
+  return presence ? always | guildPresencesIntent : always;
+}
 
 // The close code the gateway sends when an intent this road asks for has not been enabled for the
 // application. It is not a connection that failed: nothing about trying again makes it work.
@@ -65,6 +77,32 @@ export interface DiscordMessage {
   sentAt: number;
   files: { name: string; contentType: string | null; url: string }[];
 }
+
+// A person starting to type in a channel: Discord tells the start alone, never a stop.
+export interface DiscordTyping {
+  channelId: string;
+  guildId: string | null;
+  userId: string;
+}
+
+// A person's status as Discord names it.
+export type DiscordStatus = "online" | "idle" | "dnd" | "offline";
+
+// One member's presence in one guild.
+export interface DiscordPresence {
+  guildId: string;
+  userId: string;
+  status: DiscordStatus;
+}
+
+// A guild as a session's start delivers it: the members it lists, and the presence of those it gives one.
+export interface DiscordGuild {
+  guildId: string;
+  memberIds: string[];
+  presences: DiscordPresence[];
+}
+
+const statuses: ReadonlySet<string> = new Set(["online", "idle", "dnd", "offline"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -138,13 +176,93 @@ export function parseDispatch(frame: GatewayFrame, now = Date.now()): DiscordMes
   };
 }
 
+// The id of the user a payload names in its `user`, or null where it names none.
+function userIdOf(payload: Record<string, unknown>): string | null {
+  const user = isRecord(payload.user) ? payload.user : null;
+
+  return typeof user?.id === "string" ? user.id : null;
+}
+
+// One presence of a guild, or null where it names no person or a status Discord does not document.
+function presenceOf(guildId: string, payload: unknown): DiscordPresence | null {
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const userId = userIdOf(payload);
+  const { status } = payload;
+
+  return userId === null || typeof status !== "string" || !statuses.has(status)
+    ? null
+    : { guildId, userId, status: status as DiscordStatus };
+}
+
+// A typing start, or null where the frame is none or misses its channel or its person.
+export function parseTyping(frame: GatewayFrame): DiscordTyping | null {
+  const payload = frame.d;
+
+  if (frame.t !== "TYPING_START" || !isRecord(payload)) {
+    return null;
+  }
+
+  const { channel_id: channelId, user_id: userId, guild_id: guildId } = payload;
+
+  return typeof channelId === "string" && typeof userId === "string"
+    ? { channelId, guildId: typeof guildId === "string" ? guildId : null, userId }
+    : null;
+}
+
+// A member's presence changed, or null where the frame is none or misses what one cannot be without.
+export function parsePresence(frame: GatewayFrame): DiscordPresence | null {
+  const payload = frame.d;
+
+  return frame.t === "PRESENCE_UPDATE" && isRecord(payload) && typeof payload.guild_id === "string"
+    ? presenceOf(payload.guild_id, payload)
+    : null;
+}
+
+// A guild as a session's start delivers it, or null where the frame is none or the guild is unavailable.
+export function parseGuild(frame: GatewayFrame): DiscordGuild | null {
+  const payload = frame.d;
+
+  if (frame.t !== "GUILD_CREATE" || !isRecord(payload) || typeof payload.id !== "string" || payload.unavailable === true) {
+    return null;
+  }
+
+  const guildId = payload.id;
+  const members = Array.isArray(payload.members) ? payload.members : [];
+  const presences = Array.isArray(payload.presences) ? payload.presences : [];
+
+  return {
+    guildId,
+    memberIds: members.flatMap((member) => {
+      const userId = isRecord(member) ? userIdOf(member) : null;
+
+      return userId === null ? [] : [userId];
+    }),
+    presences: presences.flatMap((presence) => {
+      const read = presenceOf(guildId, presence);
+
+      return read === null ? [] : [read];
+    }),
+  };
+}
+
+// The guilds a session's ready names, each of which Discord delivers after it.
+export function readyGuilds(frame: GatewayFrame): string[] {
+  const payload = frame.d;
+  const guilds = isRecord(payload) && Array.isArray(payload.guilds) ? payload.guilds : [];
+
+  return guilds.flatMap((guild) => (isRecord(guild) && typeof guild.id === "string" ? [guild.id] : []));
+}
+
 // What the road says to open a session: who it is, what it asks to be sent, and enough about
 // itself for the platform's own bookkeeping. The token is in the frame because that is where the
 // gateway takes it; nothing prints this frame.
-export function identifyFrame(token: string): string {
+export function identifyFrame(token: string, presence: boolean): string {
   return JSON.stringify({
     op: gatewayOps.identify,
-    d: { token, intents: gatewayIntents, properties: { os: "linux", browser: clientName(), device: clientName() } },
+    d: { token, intents: gatewayIntents(presence), properties: { os: "linux", browser: clientName(), device: clientName() } },
   });
 }
 

@@ -16,6 +16,18 @@ owner_pace_ms = 2000
 # starts (docs/discord.md, 「The owner's account」).
 owner_confirm_ms = 600000
 
+# How long a typing mark the bot account's socket hears stands, in milliseconds: Discord's own ten seconds, which
+# it renews while a person keeps writing and never takes off (docs/discord.md, 「Typing and presence」).
+typing_lasts_ms = 10000
+
+# How often, in milliseconds, the gateway asks Discord whether the application has been granted the presence
+# intent, after the first time, as it starts.
+presence_check_ms = 600000
+
+# How long, in milliseconds, the gateway waits after a fresh session's ready for the guilds it names before it
+# tells the presence it holds as a whole list.
+presence_gather_ms = 15000
+
 # The ranges this provider assigns numbers in, both ends included, held clear of the ranges other chat
 # providers declare. Rooms count down from `last`; people count up from `first`.
 [numbering.rooms]

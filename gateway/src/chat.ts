@@ -26,6 +26,8 @@ export interface SendCommon {
   tag?: string | null;
   prefix?: string | null;
   replyToMessageId?: number | null;
+  // The account the send goes out in, by the number the caller knows it by; none for the provider's own.
+  accountId?: number | null;
 }
 
 export type AlbumItem = { address: string } | { name: string; mime: string; bytes: string };
@@ -101,6 +103,41 @@ export interface HandedMessage {
   files: MessageFile[];
   gathering: boolean;
   gatherFailure?: string | null;
+}
+
+// A person writing in a room now, or no longer, as `POST /typing-marks` takes it.
+export interface TypingMark {
+  via: string;
+  roomId: number;
+  personId: number;
+  on: boolean;
+  // How long the mark stands unless told again, in milliseconds.
+  lastsMs: number | null;
+}
+
+export type ChatPresenceState = "online" | "away" | "offline";
+
+// One person's presence beside the rooms they stand in, which the service narrows to the rooms the receiving
+// side listens to.
+export interface PersonInRooms {
+  personId: number;
+  state: ChatPresenceState;
+  lastSeenAt: number | null;
+  roomIds: number[];
+}
+
+// People's presence, as the service's `POST /presence-changes` takes it; `whole` where the list is every person
+// the provider tells presence of.
+export interface PresenceInRooms {
+  via: string;
+  people: PersonInRooms[];
+  whole: boolean;
+}
+
+// Whether the bot account's socket hears one thing now, and where it does not, why.
+export interface Heard {
+  heard: boolean;
+  reason: string | null;
 }
 
 // A room as a provider knows it, and the room to reach the owner in.

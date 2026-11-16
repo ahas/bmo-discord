@@ -3,6 +3,7 @@
 
 pub mod config;
 pub mod dialect;
+pub mod hearing;
 pub mod policy;
 pub mod provider;
 pub mod routes;

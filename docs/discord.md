@@ -15,6 +15,9 @@ is set up and what it can do.
   rather than reconnecting for ever. An application in more than a hundred servers is reviewed before it is
   granted.
 - **The bot invited into a guild**, with permission to read and send in the channels it is meant to be in.
+- **For presence, the presence intent enabled for that application.** It is privileged and switched on in the
+  developer portal, under the Discord account that owns the application. Without it everything else runs, and
+  the provider declares no `presence` and says why (「Typing and presence」).
 
 - **For the modes on the owner's account, the owner's own user token**, `BMO_DISCORD_OWNER_TOKEN`, with
   `BMO_DISCORD_OWNER_ID` naming the same account, which the gateway confirms with Discord itself. Discord's
@@ -30,7 +33,7 @@ is set up and what it can do.
 | `key` | `discord` |
 | `label` | the platform's name in this repository's language pack, `lang/ko.toml` |
 | `configured` | null where `BMO_DISCORD_TOKEN` is set, else the sentence naming it |
-| `can` | `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing`, `edit`, as `policy/discord.toml` lists them |
+| `can` | `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing`, `edit`, as `policy/discord.toml` lists them; `peopleTyping` while the bot account's socket runs, and `presence` while it runs with the presence intent granted (「Typing and presence」) |
 | `dialect` | `discord-markdown` (「The dialect」) |
 | `shows` | null |
 | `numbering` | `assigned` for rooms, people and messages, with the rooms' and people's ranges declared (「Numbering」) |
@@ -70,10 +73,14 @@ owner's account, what the gateway's confirmation answered.
   it, and a dropped socket is opened again with growing delay.
 - **A session is resumed where the platform lets it** and started fresh where it does not, so a blip does not
   deliver a room's messages twice or lose them.
-- **A refused intent is not a blip.** The close code that says a privileged intent is not enabled stops the bot
-  account's socket, with one line naming MESSAGE_CONTENT, instead of reconnecting for ever.
+- **A refused intent is not a blip.** The close code that says a privileged intent is not enabled, met while
+  the identify asked for presence, takes the presence intent away and opens the socket again without it; met
+  without it, the code stops the bot account's socket, with one line naming MESSAGE_CONTENT, instead of
+  reconnecting for ever.
+- **The socket runs** from the session's ready, or its resume, until it closes.
 - **Every request of the bot account carries its token under the `Bot ` scheme**, and the identify names the
-  intents the provider reads with, MESSAGE_CONTENT among them.
+  intents the provider reads with: the guilds, guild and direct messages, MESSAGE_CONTENT, guild and direct
+  message typing, and the guilds' presences while that intent is granted.
 - **The bot account's own id is read off the token's first segment**, so the provider knows who it is in a
   room before the socket is open.
 - **The socket identifies itself** with the client name `BMO_DISCORD_CLIENT_NAME` gives.
@@ -163,6 +170,56 @@ token and nothing else of it: no socket is opened on it, and every room is read 
 - **It never faults**, and a reader sees the markup as it stands.
 - **What a writer is told** is the `writing` sentence in `policy/discord.toml`.
 
+## Typing and presence
+
+What bmo-chat's `docs/presence.md` asks of a chat service, as the bot account's socket hears it. Each is told
+to the service across the seam, and the service tells the receiving side of it only for a room the receiving
+side listens to (`docs/boundary-api.md`, 「Calls made on the receiving side」).
+
+```mermaid
+flowchart TD
+  D["Discord: typing start, presence update, guild"] --> G["the gateway: numbers, rooms, owner's echo"]
+  G -->|seam: typing marks, presence in rooms| S["the service"]
+  S -->|asks each room| R["the receiving side"]
+  S -->|marks and presence of listened rooms| R
+```
+
+### Typing
+
+- **Heard on the bot account's socket** through the two typing intents, guild message typing and direct
+  message typing, which are not privileged.
+- **Each typing start is a mark `on`** with a life of `typing_lasts_ms` in `policy/discord.toml`, ten seconds,
+  as Discord gives one. Discord tells no stop, so a mark ends by its life or by the person's message.
+- **Only in a room the provider has numbered,** since a channel no message has come from is no room the
+  receiving side holds, and the service tells the mark only where the receiving side listens to the room.
+- **The account the provider reads by is never told of.** A typing start of the bot account is passed over, and
+  so is one of the owner's account in a channel where this provider sent a typing through that account within
+  the mark's life: that mark is the agent's or the console's own coming back.
+- **`peopleTyping` is declared while the bot account's socket runs.**
+
+### Presence
+
+- **Heard as the guild members' presence updates,** which need the privileged presence intent.
+- **Discord's states are mapped:** online is `online`, idle is `away`, do not disturb is `online`, and offline
+  is `offline`. Discord names no moment last seen, so `lastSeenAt` is null.
+- **Whether the intent is granted is read from the application.** As the gateway starts and every
+  `presence_check_ms` in `policy/discord.toml` after, it asks Discord for the application the bot token is
+  (`GET /applications/@me`) and reads its flags: the intent is granted where they carry the presence intent,
+  full or limited. The identify asks for presence only while it is granted. A check that finds it newly granted
+  opens the socket again so the next identify asks for it, and a connection Discord refuses for an intent while
+  presence was asked for takes it away until the next check.
+- **Until it is granted, the provider says so:** the gateway's answer about what it hears carries the reason,
+  and both processes write one line naming the presence intent and where it is switched on.
+- **`presence` is declared while the socket runs with the intent granted.**
+- **A person is told of in the rooms they stand in:** a member of a guild in every channel of that guild the
+  provider has numbered, and the one person of a DM in that DM. The service tells only the people who stand in
+  a room the receiving side listens to, and never the bot account.
+- **A whole list on becoming ready.** After a fresh session's ready Discord sends every guild the ready names,
+  with its members and their presences. Once every one has come, or `presence_gather_ms` after the ready, the
+  gateway tells every person it holds a presence of as a `whole` list; a member a guild lists with no presence is
+  `offline`. A guild that comes later, and every presence update, is told as a change of the people it names.
+- **What it holds is kept in memory alone**, and a new session starts it again from its ready.
+
 ## Numbering
 
 - **Rooms, people and messages are all numbered by this provider.** A Discord id is a snowflake, a 64-bit
@@ -171,7 +228,8 @@ token and nothing else of it: no socket is opened on it, and every room is read 
 - **The gateway keeps the numbers** in its store, `discord.sqlite` under `BMO_DISCORD_DATA`: a number for each
   channel, each person and each message it has seen or sent, the messages it has handed over, the voice each
   room is answered by, the one person of each DM channel, the rooms the owner has been heard in, and the
-  messages it sent through the owner's account with the voice each went out in.
+  messages it sent through the owner's account with the voice each went out in, and the guild of each guild
+  channel.
 - **The ranges:** room numbers count down from −8,000,000,000,000 and person numbers count up from
   8,000,000,000,000, each taking one past the furthest the counter has ever reached, so a number once given is
   never given again. A message number counts up from one within its room, past the highest the room was ever
@@ -213,6 +271,7 @@ Every refusal is a bmo-chat refusal code with its English sentence, answered wit
 | a voice on the owner's account in a room that account does not answer | `platform` | "The owner's account does not answer room {room}." |
 | a kind the owner's account does not send | `platform` | "The owner's account does not send a {kind}." |
 | an edit through the owner's account of a message it did not send | `platform` | "The owner's account did not send message {message}." |
+| a `typing` send for an account the send names (`accountId`) | `platform` | "This provider shows typing only in the bot account and the owner's account, not for account {account}." |
 | a `human-avatar` send with no prefix | `platform` | "A human-avatar send needs a prefix, and neither the send nor BMO_DISCORD_AVATAR_PREFIX gives one." |
 | an edit, a reaction or a pin of a message this provider has not numbered | `platform` | "There is no message {message}." |
 | a sticker the pairing does not hold | `platform` | "No sticker is paired with {emoji}." |
@@ -223,11 +282,19 @@ Every refusal is a bmo-chat refusal code with its English sentence, answered wit
 The declaration test holds the modes and the capabilities the service declares: `bot-account` active when its
 token is set, `human-reader` and `human-avatar` active once the gateway has confirmed the owner's account and
 inactive saying what they wait on otherwise, `own-account` unsupported with the terms' words whatever is set,
-and the nine capabilities, read from a stand-in gateway's answer about the owner's account. The room-modes test
-holds a room's voices narrowed to the active ones. The gateway's owner-account test, against a stand-in Discord,
+and the nine capabilities, read from a stand-in gateway's answer about the owner's account. The hearing test
+holds `peopleTyping` and `presence` declared as a stand-in gateway answers it hears each, and the service
+telling a stand-in receiving side a typing mark only of a room it listens to and a presence change only of the
+people who stand in one, a `whole` change whole. The room-modes test holds a room's voices narrowed to the
+active ones. The gateway's owner-account test, against a stand-in Discord,
 holds the confirmation (the named account confirmed; another account, a refused token and an unset token not),
 a room offered the owner's voices only while the account is confirmed, a `human-avatar` send going out behind
 the prefix and a `human-reader` send exactly as given, both on the bare user token, the bot account's send on
-its `Bot ` scheme, and a `human-avatar` send with no prefix refused. The rest of the behaviour tests are
-deferred: no Discord test account is connected, so nothing here, the owner's account least of all, has been
+its `Bot ` scheme, and a `human-avatar` send with no prefix refused. The gateway's typing-and-presence test
+holds a typing start told as a ten-second mark only in a numbered room and never of the bot account, the
+owner's typing start passed over within a mark's life of this provider typing through his account, a typing
+send for another account refused with nothing typed, the identify asking for the typing intents always and for
+presence only where it is granted, a fresh session's guilds told as one whole list with idle as `away`, do not
+disturb as `online` and a listed member with no presence as `offline`, and each person told beside the rooms
+they stand in. The rest of the behaviour tests are deferred: no Discord test account is connected, so nothing here, the owner's account least of all, has been
 tried against a live Discord server.

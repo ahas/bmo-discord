@@ -63,6 +63,10 @@ async function answer(request: Request): Promise<Response> {
     return Response.json({ ready: owner.confirmed, reason: owner.reason, version: packageFile.version });
   }
 
+  if (request.method === "GET" && path === "/hearing") {
+    return Response.json(discordProvider.hearing());
+  }
+
   if (request.method === "GET" && path === "/owner") {
     return Response.json({ roomId: await discordProvider.ownerRoom() });
   }

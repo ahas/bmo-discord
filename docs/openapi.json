@@ -29,6 +29,90 @@
         "scheme": "bearer",
         "description": "The bearer every route takes, read from BMO_DISCORD_ROUTE_TOKEN (docs/boundary-api.md, 「Configuration」)."
       }
+    },
+    "schemas": {
+      "Heard": {
+        "type": "object",
+        "description": "Whether the bot account's socket hears one thing now, and where it does not, why.",
+        "properties": {
+          "heard": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "heard",
+          "reason"
+        ]
+      },
+      "Hearing": {
+        "type": "object",
+        "description": "What the bot account's socket hears beside messages (docs/discord.md, 「Typing and presence」).",
+        "properties": {
+          "peopleTyping": {
+            "$ref": "#/components/schemas/Heard"
+          },
+          "presence": {
+            "$ref": "#/components/schemas/Heard"
+          }
+        },
+        "required": [
+          "peopleTyping",
+          "presence"
+        ]
+      },
+      "PersonInRooms": {
+        "description": "One person's presence beside the rooms they stand in.",
+        "allOf": [
+          {
+            "$ref": "../../../base/chat/docs/openapi/receiver.json#/components/schemas/PersonPresence"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "roomIds": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "required": [
+              "roomIds"
+            ]
+          }
+        ]
+      },
+      "PresenceInRooms": {
+        "type": "object",
+        "description": "Whether people are reachable now, each beside the rooms they stand in; the service tells the people who stand in a room the receiving side listens to.",
+        "properties": {
+          "via": {
+            "type": "string"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonInRooms"
+            }
+          },
+          "whole": {
+            "type": "boolean",
+            "description": "Whether the list is every person the provider tells presence of."
+          }
+        },
+        "required": [
+          "via",
+          "people",
+          "whole"
+        ]
+      }
     }
   },
   "paths": {
@@ -233,6 +317,40 @@
         "description": "Answered from the gateway's last confirmation of the owner's account with Discord (docs/discord.md, 「The owner's account」); answering it makes no call on Discord."
       }
     },
+    "/hearing": {
+      "get": {
+        "operationId": "hearing",
+        "summary": "What the bot account's socket hears beside messages",
+        "x-call": {
+          "language": "rust",
+          "name": "hearing",
+          "answer": "Hearing"
+        },
+        "description": "Answered from what the gateway holds; answering it makes no call on Discord.",
+        "responses": {
+          "200": {
+            "description": "Whether typing and presence are heard, and where not, why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Hearing"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The error shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/WireError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rooms/{roomId}/messages/{messageId}": {
       "put": {
         "operationId": "handOver",
@@ -293,6 +411,80 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "The receiving side's answer, passed on in the error shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/receiver.json#/components/schemas/WireError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/typing-marks": {
+      "post": {
+        "operationId": "typingMarked",
+        "summary": "One typing mark told to the receiving side",
+        "x-call": {
+          "language": "typescript",
+          "name": "typingMarked",
+          "request": "TypingMark"
+        },
+        "description": "Told where the receiving side listens to the room, and passed over where it does not. The gateway offers a mark once.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../../../base/chat/docs/openapi/receiver.json#/components/schemas/TypingMark"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Told, or passed over for a room the receiving side does not listen to."
+          },
+          "default": {
+            "description": "The receiving side's answer, passed on in the error shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/receiver.json#/components/schemas/WireError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/presence-changes": {
+      "post": {
+        "operationId": "presenceChanged",
+        "summary": "People's presence told to the receiving side",
+        "x-call": {
+          "language": "typescript",
+          "name": "presenceChanged",
+          "request": "PresenceInRooms"
+        },
+        "description": "The people who stand in a room the receiving side listens to are told as a presence change; a whole change is told whole. The gateway offers it again while the service refuses the connection.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresenceInRooms"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Told."
           },
           "default": {
             "description": "The receiving side's answer, passed on in the error shape.",

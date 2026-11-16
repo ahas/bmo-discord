@@ -18,9 +18,9 @@ The provider is two processes of one repository:
 ```mermaid
 flowchart LR
   Rx[the receiving side] -->|provider routes| S[service]
-  S -->|PUT rooms messages| Rx
-  S -->|seam: health, sends, rooms, owner| G[gateway]
-  G -->|seam: message hand-over| S
+  S -->|messages, typing marks, presence| Rx
+  S -->|seam: health, hearing, sends, rooms, owner| G[gateway]
+  G -->|seam: messages, typing marks, presence| S
   G -->|gateway socket, REST| DC[Discord]
 ```
 
@@ -32,13 +32,10 @@ Every provider route of bmo-chat's `docs/protocol.md`, served by bmo-chat's prov
 protocol and its `docs/openapi/provider.json` state them, under `BMO_DISCORD_ROUTE_TOKEN`. This repository
 adds no public route beside them.
 
-### This repository's own route
+### This repository's own routes
 
-| Route | Body | Answer |
-|---|---|---|
-| `PUT /rooms/{roomId}/messages/{messageId}` | a `HandedMessage` as bmo-chat's `docs/contract.md` states it | 201 where the receiving side did not hold the message before and 200 where it did, with the message as held; the receiving side's own error shape where it could not take it |
-
-The route is on the loopback and takes the same bearer as every other route.
+The routes the gateway calls, stated with the seam (「The service's routes, called by the gateway」). They are on
+the loopback and take the same bearer as every other route.
 
 ## Calls made on the receiving side
 
@@ -48,6 +45,8 @@ Every hand-over goes through bmo-chat's receiver link to `BMO_DISCORD_RECEIVER_U
 | Route | What is handed over |
 |---|---|
 | `PUT /rooms/{roomId}/messages/{messageId}` | a message a room said (`live`), a message already handed over and changed (`edit`), and the agent's own words read back down a socket (`live`) |
+| `POST /typing-marks` | a person writing in a room the receiving side listens to, as a `TypingMark` with a ten-second `lastsMs` |
+| `POST /presence-changes` | whether people who stand in a room the receiving side listens to are reachable, as a `PresenceChange`, `whole` on becoming ready |
 
 What the provider hands over:
 
@@ -62,9 +61,15 @@ What the provider hands over:
 - **The context** carries the author's handle as `senderUsername`, the words the author typed as
   `spokenText`, Discord's own payload as `metadata`, and `carriesFile` where the message carried a file.
 
+- **A typing mark and a presence change go only where the provider declares what hears them.** The link is
+  told the provider it serves, and drops a mark while `peopleTyping` is not declared and a change while
+  `presence` is not (`docs/discord.md`, 「Typing and presence」).
+
 ### Needed from the receiving side
 
-Nothing. The only route this provider calls is the protocol's hand-over route.
+| Route | What is asked |
+|---|---|
+| `GET /rooms/{roomId}` | whether the receiving side listens to a room, asked before a typing mark or a presence change about it is told |
 
 ## The seam between the service and the gateway
 
@@ -81,17 +86,26 @@ one. A failure is answered with the protocol's error shape.
 | `GET /rooms/{roomId}` | | the protocol's `ProviderRoom`, its `modes` the voices whose account answers the room; the service keeps those its declaration has active. 404 `not-found` where the number is not this provider's |
 | `GET /owner` | | the protocol's `ProviderOwner`: `roomId` (number or null) |
 | `GET /owner-account` | | the protocol's `ChatHealth` read for the owner's account: `ready` once the gateway has confirmed it with Discord, `reason` why not, and `version` |
+| `GET /hearing` | | what the bot account's socket hears beside messages: `peopleTyping` and `presence`, each `heard` (boolean) and `reason` (string or null) |
 
-### The service's route, called by the gateway
+### The service's routes, called by the gateway
 
 | Route | Body | Answer |
 |---|---|---|
 | `PUT /rooms/{roomId}/messages/{messageId}` | the protocol's `HandedMessage` | the message as the receiving side holds it, 201 or 200; the receiving side's failure in the error shape |
+| `POST /typing-marks` | the protocol's `TypingMark` | 204 once told, or passed over where the receiving side does not listen to the room; the receiving side's failure in the error shape |
+| `POST /presence-changes` | a `PresenceInRooms`: `via`, `whole`, and `people`, each the protocol's `PersonPresence` beside `roomIds`, the rooms the person stands in | 204 once the people who stand in a room the receiving side listens to are told; the receiving side's failure in the error shape |
+
+The service tells the receiving side a typing mark only of a room it listens to, and a presence change only of
+the people who stand in one, asking it of each room named; a `whole` change is told whole even where nobody in
+it stands in such a room.
 
 The gateway offers a hand-over again, every two seconds, only while the service refuses the connection, and
 keeps offering it until the service is reached; a hand-over that reached the service waits for its answer,
 however long. A hand-over the service answers with a failure is not marked as handed over, so the next socket
-that reads the same message offers it again.
+that reads the same message offers it again. A presence change is offered again the same way, while the service
+refuses the connection; a typing mark is offered once, since one offered late tells a mark that has already
+ended.
 
 ## Configuration
 

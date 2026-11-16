@@ -2,7 +2,8 @@
 // number holds exactly, so every channel, person and message is given a number here and the snowflake stays a
 // string. The store also keeps which messages have been handed over, so a message two sockets read goes once,
 // the voice each room is answered by, the one person of each DM channel, the rooms the owner has been heard in,
-// and the messages sent through the owner's account. It is this provider's alone, so
+// the messages sent through the owner's account, and the guild of each guild channel. It is this provider's
+// alone, so
 // the provider key each call names is always this provider's.
 
 import { Database } from "bun:sqlite";
@@ -68,6 +69,11 @@ const schema = `
     chat_id INTEGER PRIMARY KEY,
     sender_id INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS guild_rooms (
+    chat_id INTEGER PRIMARY KEY,
+    guild_id TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS guild_rooms_by_guild ON guild_rooms (guild_id);
   CREATE TABLE IF NOT EXISTS owner_rooms (
     chat_id INTEGER PRIMARY KEY
   );
@@ -133,6 +139,13 @@ export class Store {
           return chatId;
         })(),
 
+      // The room number of a channel already numbered, or null where none is: nothing is given out.
+      knownChatId: async (_provider: string, roomId: string): Promise<number | null> => {
+        const row = db.query("SELECT chat_id FROM rooms WHERE room_id = $roomId").get({ roomId }) as { chat_id: number } | null;
+
+        return row?.chat_id ?? null;
+      },
+
       // The channel behind a room number, or null where the number is not one of this provider's rooms.
       providerRoom: async (_provider: string, chatId: number): Promise<string | null> => {
         const row = db.query("SELECT room_id FROM rooms WHERE chat_id = $chatId").get({ chatId }) as { room_id: string } | null;
@@ -148,6 +161,13 @@ export class Store {
         }[];
 
         return rows.map((row) => ({ roomId: row.room_id, chatId: row.chat_id, title: row.title }));
+      },
+
+      // The number of a person already numbered, or null where none is: nothing is given out.
+      knownSenderId: async (_provider: string, userId: string): Promise<number | null> => {
+        const row = db.query("SELECT sender_id FROM people WHERE user_id = $userId").get({ userId }) as { sender_id: number } | null;
+
+        return row?.sender_id ?? null;
       },
 
       // A person's number, given on first sight, one above the highest ever given.
@@ -305,6 +325,23 @@ export class Store {
           "INSERT INTO private_rooms (chat_id, sender_id) VALUES ($chatId, $senderId) ON CONFLICT (chat_id) DO UPDATE SET sender_id = excluded.sender_id",
         ).run({ chatId, senderId });
       },
+
+      // The DM rooms that are a one-to-one with the agent with this person.
+      privateRoomsOf: async (_provider: string, senderId: number): Promise<number[]> =>
+        (db.query("SELECT chat_id FROM private_rooms WHERE sender_id = $senderId").all({ senderId }) as { chat_id: number }[])
+          .map((row) => row.chat_id),
+
+      // Writes down the guild a guild channel's room belongs to.
+      setRoomGuild: async (_provider: string, chatId: number, guildId: string): Promise<void> => {
+        db.query(
+          "INSERT INTO guild_rooms (chat_id, guild_id) VALUES ($chatId, $guildId) ON CONFLICT (chat_id) DO UPDATE SET guild_id = excluded.guild_id",
+        ).run({ chatId, guildId });
+      },
+
+      // The rooms of a guild's channels the provider has numbered.
+      guildRooms: async (_provider: string, guildId: string): Promise<number[]> =>
+        (db.query("SELECT chat_id FROM guild_rooms WHERE guild_id = $guildId").all({ guildId }) as { chat_id: number }[])
+          .map((row) => row.chat_id),
 
       // Writes down that the owner's account has been heard in a room, which shows it is in the room.
       markOwnerHeard: async (_provider: string, chatId: number): Promise<void> => {

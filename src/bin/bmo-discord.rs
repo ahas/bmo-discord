@@ -64,12 +64,14 @@ async fn serve() -> Result<(), String> {
     return Err("the configuration is incomplete".to_owned());
   }
 
-  let receiver: Arc<dyn ChatReceiver> =
-    Arc::new(ChatReceiverLink::new(config.receiver_url.as_str(), config.receiver_token.as_str()));
   let gateway = Gateway::new(config.gateway_port, config.route_token.as_str());
   let port = config.port;
   let token = config.route_token.clone();
+  let link = ChatReceiverLink::new(config.receiver_url.as_str(), config.receiver_token.as_str());
   let provider = Arc::new(DiscordProvider::new(config, gateway));
+  // The link reads the provider's declaration at each typing mark and presence change, and drops one whose
+  // capability the provider does not declare now.
+  let receiver: Arc<dyn ChatReceiver> = Arc::new(link.declared_by(&provider));
 
   if let Some(reason) = provider.configured() {
     eprintln!("discord: {reason}");

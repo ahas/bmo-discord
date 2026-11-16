@@ -1,7 +1,8 @@
 // The Discord chat provider's gateway side, and the fullest surface of the providers: words, an answer
 // aimed at a message, a picture, a file, a sticker, a reaction, a pin, the typing state and an edit of what
 // the agent itself said. The service declares the provider and runs its dialect; what stands here reads the
-// rooms, performs the sends and answers the room questions (docs/boundary-api.md).
+// rooms, performs the sends and answers the room questions, and tells the service who is typing in a room
+// and who is reachable (docs/boundary-api.md, docs/discord.md 「Typing and presence」).
 //
 // It reads by one account, the official bot account, on one socket. The bot is delivered a room's every
 // message where the application has been given the MESSAGE_CONTENT intent, which is privileged and asked
@@ -18,16 +19,18 @@ import { channelName, directRecipient, editMessage, pin, react, sendFile, sendIm
 import { accountFor, accountIdFromToken, botAccount, botTokenMissing, discordConfig, isOwnerVoice, voiceMissing } from "./config";
 import { openGateway } from "./gateway";
 import { keepConfirming, onOwnerAccount, ownerConfirmation } from "./owner";
+import { PresenceBook, keepCheckingPresence, presenceGrant, refusePresence } from "./presence";
 import { Refusal, notReady, platformRefusal } from "./chat";
 
 import type { KeptMessage, Store } from "./store";
 import type { Service } from "./seam";
 import type { DiscordCall } from "./api";
 import type { DiscordAccount, DiscordConfig, OwnerVoice } from "./config";
-import type { DiscordMessage } from "./events";
+import type { DiscordMessage, DiscordTyping } from "./events";
 import type { DiscordSocket } from "./gateway";
 import type { OwnerConfirmation } from "./owner";
-import type { ChatSendRequest, ChatSent, ChatVoice, ProviderRoom } from "./chat";
+import type { HeldPresence } from "./presence";
+import type { ChatSendRequest, ChatSent, ChatVoice, Heard, PersonInRooms, ProviderRoom } from "./chat";
 
 // The name this provider is known by: written onto every message it hands over, and the provider whose
 // rooms, people and messages the store numbers.
@@ -49,6 +52,10 @@ interface AwaitedEcho {
 }
 
 const awaitedEchoes = new Set<AwaitedEcho>();
+
+// When this provider last made the owner's account type in each channel: a typing start of that account there
+// within a mark's life is this provider's own coming back.
+const ownerTypedAt = new Map<string, number>();
 
 // The words a send puts out in a voice: in `human-avatar` behind the prefix, followed by one space unless it
 // ends in one, and left as they are where they already begin with it; in any other voice exactly as given.
@@ -234,6 +241,10 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
 
   await archive.chats().setRoomVoice(discordKey, chatId, account.voice);
 
+  if (message.guildId !== null) {
+    await archive.chats().setRoomGuild(discordKey, chatId, message.guildId);
+  }
+
   const fromOwner = message.authorId !== "" && message.authorId === discord.ownerUserId;
   // A message the owner's account wrote is this provider's own where it sent it, and otherwise shows the
   // owner's account is in the room.
@@ -316,8 +327,75 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
   await hand(archive, service, kept);
 }
 
+// A person starting to type, told to the service as a mark of Discord's own ten seconds. Only a channel already
+// numbered is told of, since no other is a room the receiving side holds; the bot account is never told of,
+// nor the owner's account where the start is this provider's own typing through it coming back.
+export async function handleTyping(road: DiscordRoad, typing: DiscordTyping, now = Date.now()): Promise<void> {
+  const { archive, discord, service } = road;
+  const fromOwner = typing.userId === discord.ownerUserId;
+  const ownTyping = fromOwner && now - (ownerTypedAt.get(typing.channelId) ?? Number.NEGATIVE_INFINITY) < discordPolicy.typing_lasts_ms;
+
+  if (typing.userId === agentAccountId(discord) || ownTyping) {
+    return;
+  }
+
+  const chatId = await archive.providerNumbers().knownChatId(discordKey, typing.channelId);
+
+  if (chatId === null) {
+    return;
+  }
+
+  const personId = fromOwner
+    ? await ownerNumber(archive, discord)
+    : await archive.providerNumbers().providerSenderId(discordKey, typing.userId);
+
+  if (personId === null) {
+    return;
+  }
+
+  await service.typingMarked({ via: discordKey, roomId: chatId, personId, on: true, lastsMs: discordPolicy.typing_lasts_ms });
+}
+
+// People's presence as the service takes it: each beside the rooms they stand in, every numbered channel of a
+// guild they were heard in and their DM with the agent. A person who stands in no numbered room is left out,
+// given no number where they have none, and the bot account is never told of.
+export async function presenceInRooms(road: DiscordRoad, people: HeldPresence[]): Promise<PersonInRooms[]> {
+  const { archive, discord } = road;
+  const told: PersonInRooms[] = [];
+
+  for (const person of people) {
+    if (person.userId === agentAccountId(discord)) {
+      continue;
+    }
+
+    const guildRooms = (await Promise.all(person.guildIds.map((guildId) => archive.chats().guildRooms(discordKey, guildId)))).flat();
+    const personId = person.userId === discord.ownerUserId
+      ? await ownerNumber(archive, discord)
+      : guildRooms.length === 0
+        ? await archive.providerNumbers().knownSenderId(discordKey, person.userId)
+        : await archive.providerNumbers().providerSenderId(discordKey, person.userId);
+
+    if (personId === null) {
+      continue;
+    }
+
+    const roomIds = [...new Set([...guildRooms, ...await archive.chats().privateRoomsOf(discordKey, personId)])];
+
+    if (roomIds.length > 0) {
+      told.push({ personId, state: person.state, lastSeenAt: null, roomIds });
+    }
+  }
+
+  return told;
+}
+
 let socket: DiscordSocket | null = null;
 let stopConfirming: (() => void) | null = null;
+let stopCheckingPresence: (() => void) | null = null;
+// Whether the bot account's socket runs: from a session's ready or resume until it closes.
+let socketRuns = false;
+// Whether the session the socket runs asked for the presence intent.
+let sessionPresence = false;
 
 // What the gateway's routes ask of the provider (docs/api.md, 「Rooms」, 「Sends」 and 「Health」).
 export interface DiscordProvider {
@@ -328,6 +406,7 @@ export interface DiscordProvider {
   room(chatId: number): Promise<ProviderRoom | null>;
   ownerRoom(): Promise<number | null>;
   ownerAccount(): OwnerConfirmation;
+  hearing(): { peopleTyping: Heard; presence: Heard };
   send(request: ChatSendRequest): Promise<ChatSent>;
 }
 
@@ -364,14 +443,57 @@ export const discordProvider: DiscordProvider = {
 
     const account = botAccount(discord);
     const road: DiscordRoad = { discord, archive: deps.archive, service: deps.service, account };
+    const book = new PresenceBook(async (people, whole) => {
+      await road.service.presenceChanged({ via: discordKey, people: await presenceInRooms(road, people), whole });
+    });
 
     // A message whose handling failed is said and left; a hand-over that did not go is offered again when
-    // the socket reads the message again, so a failure never takes the process down.
-    socket = openGateway(account, (message) => {
-      handleDiscordMessage(road, message).catch((error: unknown) => {
-        console.error(`discord: message ${message.messageId} in channel ${message.channelId} failed:`, error);
-      });
+    // the socket reads the message again, so a failure never takes the process down. A typing mark or a
+    // presence change that could not be told is said and left, since the next one tells the present.
+    socket = openGateway(account, {
+      asksPresence: () => {
+        sessionPresence = presenceGrant().heard;
+
+        return sessionPresence;
+      },
+      presenceRefused: () => {
+        sessionPresence = false;
+        refusePresence();
+      },
+      opened: (guildIds) => {
+        socketRuns = true;
+
+        if (guildIds !== null && sessionPresence) {
+          book.started(guildIds);
+        }
+      },
+      closed: () => {
+        socketRuns = false;
+        book.ended();
+      },
+      message: (message) => {
+        handleDiscordMessage(road, message).catch((error: unknown) => {
+          console.error(`discord: message ${message.messageId} in channel ${message.channelId} failed:`, error);
+        });
+      },
+      typing: (typing) => {
+        handleTyping(road, typing).catch((error: unknown) => {
+          console.error(`discord: a typing start in channel ${typing.channelId} could not be told:`, error);
+        });
+      },
+      presence: (presence) => {
+        if (sessionPresence) {
+          book.update(presence);
+        }
+      },
+      guild: (guild) => {
+        if (sessionPresence) {
+          book.guild(guild);
+        }
+      },
     });
+    // A grant newly found opens the socket again, so its next identify asks for the presence intent.
+    stopCheckingPresence = keepCheckingPresence(account, () => socket?.renew());
   },
 
   stop() {
@@ -379,6 +501,33 @@ export const discordProvider: DiscordProvider = {
     socket = null;
     stopConfirming?.();
     stopConfirming = null;
+    stopCheckingPresence?.();
+    stopCheckingPresence = null;
+    socketRuns = false;
+  },
+
+  // What the bot account's socket hears beside messages: typing while it runs, and presence while it runs on a
+  // session that asked for the granted intent.
+  hearing() {
+    if (discordConfig() === null) {
+      return { peopleTyping: { heard: false, reason: botTokenMissing }, presence: { heard: false, reason: botTokenMissing } };
+    }
+
+    const closed = { heard: false, reason: "the bot account's socket is not open" };
+    const grant = presenceGrant();
+    let presence: Heard;
+
+    if (!grant.heard) {
+      presence = grant;
+    } else if (!socketRuns) {
+      presence = closed;
+    } else if (!sessionPresence) {
+      presence = { heard: false, reason: "the bot account's socket has not yet asked for the presence intent" };
+    } else {
+      presence = { heard: true, reason: null };
+    }
+
+    return { peopleTyping: socketRuns ? { heard: true, reason: null } : closed, presence };
   },
 
   // Whether the gateway has confirmed the owner's account, from its last check; no call is made to answer.
@@ -423,6 +572,14 @@ export const discordProvider: DiscordProvider = {
   async send(request) {
     if (!can.has(request.kind)) {
       throw new Refusal("unsupported-capability", `This provider cannot perform a ${request.kind} send.`, 422);
+    }
+
+    // A person's typing goes only in their own voice, and this provider types only as the bot account and the
+    // owner's account, neither of which a send names by an account.
+    if (request.kind === "typing" && request.accountId !== undefined && request.accountId !== null) {
+      throw platformRefusal(
+        `This provider shows typing only in the bot account and the owner's account, not for account ${request.accountId}.`,
+      );
     }
 
     const machine = chatMachine();
@@ -474,6 +631,11 @@ export const discordProvider: DiscordProvider = {
 
     if (request.kind === "typing") {
       if (request.fields.on) {
+        // Written down before the call, since Discord may tell the start down the socket before it answers.
+        if (!account.bot) {
+          ownerTypedAt.set(channelId, Date.now());
+        }
+
         await paced(() => typing(account, channelId));
       }
 

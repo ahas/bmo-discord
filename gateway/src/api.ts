@@ -186,6 +186,13 @@ export async function currentUser(api: DiscordCall): Promise<string | null> {
   return idOf(await call(api, "GET", "/users/@me"));
 }
 
+// The flags of the application a bot token is, as Discord itself answers; none where it names none.
+export async function currentApplicationFlags(api: DiscordCall): Promise<number> {
+  const application = await call(api, "GET", "/applications/@me");
+
+  return typeof application?.flags === "number" ? application.flags : 0;
+}
+
 // The typing state, which lapses by itself after about ten seconds. There is nothing to take back,
 // so a road is never asked to stop typing.
 export async function typing(api: DiscordCall, channelId: string): Promise<void> {

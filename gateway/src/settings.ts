@@ -16,6 +16,9 @@ export interface DiscordPolicy {
   user_accounts: string;
   owner_pace_ms: number;
   owner_confirm_ms: number;
+  typing_lasts_ms: number;
+  presence_check_ms: number;
+  presence_gather_ms: number;
   numbering: { rooms: NumberRange; people: NumberRange };
 }
 

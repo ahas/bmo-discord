@@ -1,7 +1,8 @@
 // The socket this road listens on. Discord pushes everything a bot sees down one WebSocket, and
 // keeping it open is three things: answering the hello with an identify, sending a heartbeat on
 // the beat the hello named, and opening a new socket when the old one drops — resuming where the
-// platform lets it and starting fresh where it does not.
+// platform lets it and starting fresh where it does not. What it hears it hands on read: a message,
+// a typing start, a presence update, and a guild as a session's start delivers it.
 //
 // No SDK. What a library would do here is these hundred lines plus everything this road does not
 // use, and a dependency that speaks for a platform is a dependency that decides for it.
@@ -13,10 +14,14 @@ import {
   identifyFrame,
   parseDispatch,
   parseFrame,
+  parseGuild,
+  parsePresence,
+  parseTyping,
+  readyGuilds,
   resumeFrame,
 } from "./events";
 
-import type { DiscordMessage } from "./events";
+import type { DiscordGuild, DiscordMessage, DiscordPresence, DiscordTyping, GatewayFrame } from "./events";
 
 export const gatewayUrl = "wss://gateway.discord.gg/?v=10&encoding=json";
 
@@ -25,6 +30,25 @@ const reconnectMaxMs = 60_000;
 
 export interface DiscordSocket {
   stop(): void;
+  // Opens the socket again with a fresh identify, so the intents it asks for are read again.
+  renew(): void;
+}
+
+// What the socket hands on, and what it asks of its owner. A failure in any of them is said and never takes
+// the socket down.
+export interface GatewayListener {
+  // Whether the next identify asks for the presence intent.
+  asksPresence(): boolean;
+  // Discord refused an identify that asked for the presence intent, which it has not granted.
+  presenceRefused(): void;
+  // A session ready, with the guilds it names, or one resumed, with none.
+  opened(guildIds: string[] | null): void;
+  // The socket closed; it runs again once a session is ready or resumed.
+  closed(): void;
+  message(message: DiscordMessage): void;
+  typing(typing: DiscordTyping): void;
+  presence(presence: DiscordPresence): void;
+  guild(guild: DiscordGuild): void;
 }
 
 interface Session {
@@ -32,13 +56,45 @@ interface Session {
   resumeUrl: string;
 }
 
-// One socket, kept open, for one account. `hand` is given every message the gateway dispatches;
-// what it does with one is the provider's business and a failure in it never takes the socket
-// down. The token is the application's bot token, the one account the road listens as.
-export function openGateway(
-  account: { token: string },
-  hand: (message: DiscordMessage) => void,
-): DiscordSocket {
+// Each dispatch this road acts on, read and handed to its listener; none where it acts on none.
+function handOn(frame: GatewayFrame, listener: GatewayListener): void {
+  const message = parseDispatch(frame);
+
+  if (message !== null) {
+    return listener.message(message);
+  }
+
+  const typing = parseTyping(frame);
+
+  if (typing !== null) {
+    return listener.typing(typing);
+  }
+
+  const presence = parsePresence(frame);
+
+  if (presence !== null) {
+    return listener.presence(presence);
+  }
+
+  const guild = parseGuild(frame);
+
+  if (guild !== null) {
+    listener.guild(guild);
+  }
+}
+
+// Says a listener's failure and goes on.
+function guarded(what: string, work: () => void): void {
+  try {
+    work();
+  } catch (error) {
+    console.error(`discord: ${what} failed:`, error);
+  }
+}
+
+// One socket, kept open, for one account, handing what it hears to `listener`; what it does with it is
+// the provider's business. The token is the application's bot token, the one account the road listens as.
+export function openGateway(account: { token: string }, listener: GatewayListener): DiscordSocket {
   const { token } = account;
   let socket: WebSocket | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -46,6 +102,8 @@ export function openGateway(
   let seq: number | null = null;
   let delay = reconnectMinMs;
   let stopped = false;
+  // Whether the identify of the socket now open asked for the presence intent.
+  let askedPresence = false;
   let reopening: ReturnType<typeof setTimeout> | null = null;
 
   const beat = (every: number): void => {
@@ -80,9 +138,15 @@ export function openGateway(
         const every = (frame.d as { heartbeat_interval?: number } | undefined)?.heartbeat_interval ?? 41_250;
 
         beat(every);
+
         // A session this road still holds is taken up where it left off; without one it says who
         // it is and starts a new one.
-        opening.send(session === null ? identifyFrame(token) : resumeFrame(token, session.id, seq));
+        if (session === null) {
+          askedPresence = listener.asksPresence();
+          opening.send(identifyFrame(token, askedPresence));
+        } else {
+          opening.send(resumeFrame(token, session.id, seq));
+        }
 
         return;
       }
@@ -107,28 +171,38 @@ export function openGateway(
           ? null
           : { id: ready.session_id, resumeUrl: `${ready.resume_gateway_url ?? gatewayUrl}/?v=10&encoding=json` };
         console.log("discord: gateway session open (bot account)");
+        guarded("a session's start", () => listener.opened(readyGuilds(frame)));
 
         return;
       }
 
-      const message = parseDispatch(frame);
+      if (frame.t === "RESUMED") {
+        guarded("a session's resume", () => listener.opened(null));
 
-      if (message === null) return;
-
-      try {
-        hand(message);
-      } catch (error) {
-        console.error(`discord: message ${message.messageId} in channel ${message.channelId} failed:`, error);
+        return;
       }
+
+      guarded(`the ${frame.t ?? "unnamed"} dispatch`, () => handOn(frame, listener));
     });
 
     opening.addEventListener("close", (event) => {
       if (heartbeat !== null) clearInterval(heartbeat);
 
       heartbeat = null;
+      guarded("the socket's close", () => listener.closed());
 
-      // An intent the application has not been given is not a blip: trying again does the same
-      // thing for ever, so the road says which one and stands down.
+      // An intent the application has not been given is not a blip. Where the identify asked for
+      // presence, that is the one taken away and the socket opens again at once without it; otherwise
+      // trying again does the same thing for ever, so the road says which one and stands down.
+      if (event.code === disallowedIntentsClose && askedPresence) {
+        session = null;
+        askedPresence = false;
+        guarded("the presence intent's refusal", () => listener.presenceRefused());
+        reopening = setTimeout(connect, 0);
+
+        return;
+      }
+
       if (event.code === disallowedIntentsClose) {
         stopped = true;
         console.error(
@@ -155,6 +229,12 @@ export function openGateway(
   connect();
 
   return {
+    renew() {
+      session = null;
+      delay = reconnectMinMs;
+      socket?.close();
+    },
+
     stop() {
       stopped = true;
 

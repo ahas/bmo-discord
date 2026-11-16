@@ -15,6 +15,7 @@ use tokio::task::JoinHandle;
 
 use crate::config::Config;
 use crate::dialect::DiscordMarkdown;
+use crate::hearing::{Heard, Hearing};
 use crate::policy::{POLICY, WORDS};
 use crate::seam::{Gateway, GatewayFailure};
 
@@ -22,6 +23,7 @@ pub const KEY: &str = "discord";
 
 const BOT_TOKEN_MISSING: &str = "BMO_DISCORD_TOKEN not set";
 const OWNER_UNANSWERED: &str = "the gateway has not said whether the owner's account is confirmed";
+const HEARING_UNANSWERED: &str = "the gateway has not said what its socket hears";
 
 /// How often the gateway is asked whether it is ready.
 const HEALTH_EVERY: Duration = Duration::from_secs(5);
@@ -34,6 +36,8 @@ pub struct DiscordProvider {
   gateway_health: Arc<RwLock<ChatHealth>>,
   /// Why the owner's account is not confirmed, from the gateway's last answer; none once it is.
   owner_unconfirmed: Arc<RwLock<Option<String>>>,
+  /// What the bot account's socket hears beside messages, from the gateway's last answer.
+  hearing: Arc<RwLock<Hearing>>,
   watching: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -48,6 +52,7 @@ impl DiscordProvider {
         "the gateway has not answered yet",
       ))),
       owner_unconfirmed: Arc::new(RwLock::new(Some(OWNER_UNANSWERED.to_owned()))),
+      hearing: Arc::new(RwLock::new(Hearing::neither(HEARING_UNANSWERED))),
       watching: Mutex::new(None),
     }
   }
@@ -94,6 +99,33 @@ impl DiscordProvider {
     );
 
     if let Ok(mut held) = held.write() {
+      *held = answer;
+    }
+  }
+
+  /// Asks the gateway what its socket hears, and holds the answer `peopleTyping` and `presence` stand on.
+  pub async fn read_hearing(&self) {
+    Self::hold_hearing(&self.gateway, &self.hearing).await;
+  }
+
+  /// Holds what the gateway answers its socket hears. A gateway that does not answer leaves neither heard,
+  /// saying why; a change in whether presence is heard is said in one line, so a presence intent not yet
+  /// granted is named where the operator looks.
+  async fn hold_hearing(gateway: &Gateway, held: &RwLock<Hearing>) {
+    let answer = gateway.hearing().await.unwrap_or_else(|why| {
+      Hearing::neither(&format!("the gateway does not answer about what its socket hears: {why}"))
+    });
+
+    if let Ok(mut held) = held.write() {
+      if held.presence.heard != answer.presence.heard {
+        match &answer.presence {
+          Heard { heard: true, .. } => println!("discord: presence is heard"),
+          Heard { reason, .. } => {
+            println!("discord: presence is off: {}", reason.as_deref().unwrap_or("not heard"));
+          }
+        }
+      }
+
       *held = answer;
     }
   }
@@ -234,12 +266,13 @@ impl ChatProvider for DiscordProvider {
     self.bot_missing().map(str::to_owned)
   }
 
-  /// The gateway reads the rooms; the service only keeps asking it whether it is ready and whether it has
-  /// confirmed the owner's account.
+  /// The gateway reads the rooms; the service only keeps asking it whether it is ready, whether it has
+  /// confirmed the owner's account, and what its socket hears.
   async fn start(&self, _receiver: Arc<dyn ChatReceiver>) -> Result<(), ChatFailure> {
     let gateway = self.gateway.clone();
     let health = self.gateway_health.clone();
     let owner = self.owner_unconfirmed.clone();
+    let hearing = self.hearing.clone();
     let version = self.version().to_owned();
     let watching = tokio::spawn(async move {
       loop {
@@ -256,6 +289,7 @@ impl ChatProvider for DiscordProvider {
         }
 
         Self::hold_owner_account(&gateway, &owner).await;
+        Self::hold_hearing(&gateway, &hearing).await;
 
         tokio::time::sleep(HEALTH_EVERY).await;
       }
@@ -309,8 +343,22 @@ impl ChatProvider for DiscordProvider {
     ]
   }
 
+  /// The sends the policy lists, with `peopleTyping` and `presence` while the bot account's socket hears
+  /// each, as the gateway last answered.
   fn can(&self) -> BTreeSet<ChatCapability> {
-    POLICY.can.clone()
+    let mut can = POLICY.can.clone();
+
+    if let Ok(hearing) = self.hearing.read() {
+      if hearing.people_typing.heard {
+        can.insert(ChatCapability::PeopleTyping);
+      }
+
+      if hearing.presence.heard {
+        can.insert(ChatCapability::Presence);
+      }
+    }
+
+    can
   }
 
   fn dialect(&self) -> &dyn ChatDialect {

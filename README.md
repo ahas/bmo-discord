@@ -9,9 +9,16 @@ account made for the agent is run, since Discord's terms forbid automating one.
 ## Tests and the test account
 
 - **Most behaviour tests are deferred.** The suite holds the repository-wide personal-data check, the
-  declaration and room-modes tests, and the gateway's owner-account test against a stand-in Discord.
+  declaration, room-modes and hearing tests, and the gateway's owner-account and typing-and-presence tests
+  against a stand-in Discord.
 - **The declaration test** holds the modes and the capabilities the service declares, whatever tokens are set
   and whatever the gateway answers about the owner's account.
+- **The hearing test** holds `peopleTyping` and `presence` declared as the gateway answers it hears each, and
+  the service telling a typing mark or a presence change only of a room the receiving side listens to.
+- **The typing-and-presence test** (`gateway/tests/`) holds a typing start told as a ten-second mark in a
+  numbered room, never of the bot account or of the provider's own typing through the owner's account, a typing
+  send for another account refused, the identify's intents, a fresh session's guilds told as one whole list with
+  Discord's states mapped, and each person told beside the rooms they stand in.
 - **The owner-account test** (`gateway/tests/`) holds the gateway's confirmation of the owner's account and the
   prefix a `human-avatar` send carries, which a `human-reader` send does not.
 - **The personal-data check reads every tracked file** for a mail address, a home path, a telephone number, a

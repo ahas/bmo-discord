@@ -26,7 +26,7 @@ interface Operation {
 interface Call {
   language: "rust" | "typescript";
   name: string;
-  answer: string;
+  answer?: string;
   request?: string;
   key?: string;
   optional?: boolean;
@@ -52,7 +52,7 @@ function operations(language: Call["language"]): Operation[] {
         name: call.name,
         method: method.toUpperCase(),
         path,
-        answer: call.answer,
+        answer: call.answer ?? "void",
         request: call.request ?? null,
         key: call.key ?? null,
         optional: call.optional === true,
@@ -107,6 +107,14 @@ function rustMethod(operation: Operation): string {
 `;
   }
 
+  if (operation.name === "hearing") {
+    return `  /// What the bot account's socket hears beside messages: typing, and presence.
+  pub async fn hearing(&self) -> Result<${operation.answer}, GatewayFailure> {
+    self.call(Method::${operation.method}, "${path}", None::<&()>).await
+  }
+`;
+  }
+
   throw new Error(`No Rust client template for ${operation.name}, from docs/openapi.json.`);
 }
 
@@ -120,6 +128,8 @@ use bmo_chat::{ChatHealth, ChatSendRequest, ChatSent, ProviderOwner, ProviderRoo
 use reqwest::{Client, Method};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+
+use crate::hearing::Hearing;
 
 /// The gateway at its loopback port, behind the route token.
 #[derive(Clone)]
@@ -207,22 +217,32 @@ ${methods}}
 `;
 }
 
-function typescript(): string {
-  const handOver = operations("typescript").find((operation) => operation.name === "handOver");
+// The one gateway route of the given name, which the TypeScript client must carry.
+function typescriptRoute(name: string): Operation {
+  const found = operations("typescript").find((operation) => operation.name === name);
 
-  if (handOver === undefined) {
-    throw new Error("docs/openapi.json names no handOver route.");
+  if (found === undefined) {
+    throw new Error(`docs/openapi.json names no ${name} route.`);
   }
 
-  return `${header("The gateway's client of the service: the hand-over route the service serves in docs/api.md.")}
+  return found;
+}
+
+function typescript(): string {
+  const handOver = typescriptRoute("handOver");
+  const typingMarked = typescriptRoute("typingMarked");
+  const presenceChanged = typescriptRoute("presenceChanged");
+
+  return `${header("The gateway's client of the service: the routes the service serves the gateway in docs/api.md.")}
 import { routeToken, servicePort } from "./settings";
 
-import type { HandedMessage } from "./chat";
+import type { ${handOver.request}, ${presenceChanged.request}, ${typingMarked.request} } from "./chat";
 
-// A hand-over is offered again only while nothing listens, this often, until the service is reached.
+// A hand-over or a presence change is offered again only while nothing listens, this often, until the service
+// is reached.
 const offerEveryMs = 2_000;
 
-// Why the service did not take a hand-over: the error shape it answered with.
+// Why the service did not take a call: the error shape it answered with.
 export class SeamError extends Error {
   constructor(
     readonly status: number,
@@ -262,23 +282,29 @@ export class Service {
     private readonly token: string = routeToken(),
   ) {}
 
-  // One message handed over, answered as the receiving side holds it after it, however long that takes.
-  async handOver(roomId: number, messageId: number, message: HandedMessage): Promise<HandedMessage> {
+  // One call, answered with the body the service answered with, however long that takes; a failure answer is
+  // the error shape it carried.
+  private async call(method: string, path: string, body: unknown): Promise<string> {
+    const answer = await fetch(\`\${this.base}\${path}\`, {
+      method,
+      headers: { authorization: \`Bearer \${this.token}\`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+      timeout: false,
+    });
+    const read = await answer.text();
+
+    if (!answer.ok) {
+      throw readError(read, answer.status);
+    }
+
+    return read;
+  }
+
+  // One call offered again while nothing listens at the service, until it is reached.
+  private async offered(method: string, path: string, body: unknown): Promise<string> {
     for (;;) {
       try {
-        const answer = await fetch(\`\${this.base}/rooms/\${roomId}/messages/\${messageId}\`, {
-          method: "${handOver.method}",
-          headers: { authorization: \`Bearer \${this.token}\`, "content-type": "application/json" },
-          body: JSON.stringify(message),
-          timeout: false,
-        });
-        const body = await answer.text();
-
-        if (!answer.ok) {
-          throw readError(body, answer.status);
-        }
-
-        return JSON.parse(body) as HandedMessage;
+        return await this.call(method, path, body);
       } catch (error) {
         if (!refusedConnection(error)) {
           throw error;
@@ -287,6 +313,21 @@ export class Service {
         await Bun.sleep(offerEveryMs);
       }
     }
+  }
+
+  // One message handed over, answered as the receiving side holds it after it.
+  async handOver(roomId: number, messageId: number, message: ${handOver.request}): Promise<${handOver.answer}> {
+    return JSON.parse(await this.offered("${handOver.method}", \`/rooms/\${roomId}/messages/\${messageId}\`, message)) as ${handOver.answer};
+  }
+
+  // One typing mark, offered once: a mark offered late tells one that has already ended.
+  async typingMarked(mark: ${typingMarked.request}): Promise<void> {
+    await this.call("${typingMarked.method}", "${typingMarked.path}", mark);
+  }
+
+  // People's presence, each beside the rooms they stand in.
+  async presenceChanged(change: ${presenceChanged.request}): Promise<void> {
+    await this.offered("${presenceChanged.method}", "${presenceChanged.path}", change);
   }
 }
 `;

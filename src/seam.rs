@@ -10,6 +10,8 @@ use reqwest::{Client, Method};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+use crate::hearing::Hearing;
+
 /// The gateway at its loopback port, behind the route token.
 #[derive(Clone)]
 pub struct Gateway {
@@ -115,5 +117,10 @@ impl Gateway {
   /// Whether the gateway has confirmed the owner's account, and where it has not, why.
   pub async fn owner_account(&self) -> Result<ChatHealth, GatewayFailure> {
     self.call(Method::GET, "/owner-account", None::<&()>).await
+  }
+
+  /// What the bot account's socket hears beside messages: typing, and presence.
+  pub async fn hearing(&self) -> Result<Hearing, GatewayFailure> {
+    self.call(Method::GET, "/hearing", None::<&()>).await
   }
 }
