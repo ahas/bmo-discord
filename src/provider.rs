@@ -9,7 +9,8 @@ use async_trait::async_trait;
 use bmo_chat::{
   ChatCapability, ChatDialect, ChatFailure, ChatHealth, ChatModeStanding, ChatNumberRange,
   ChatNumberRanges, ChatNumberSpace, ChatNumbering, ChatProvider, ChatReach, ChatReadMode, ChatReceiver,
-  ChatRefusal, ChatSend, ChatSendRequest, ChatSendResult, ChatVoice, ErrorCode, ProviderRoom, WireError,
+  ChatRefusal, ChatSend, ChatSendRequest, ChatSendResult, ChatVoice, ErrorCode, FileBody, ProviderRoom,
+  WireError,
 };
 use tokio::task::JoinHandle;
 
@@ -279,6 +280,21 @@ impl DiscordProvider {
     }
   }
 
+  /// The refusal of a document larger than the dialect's file limit, which Discord would refuse whole, told by
+  /// its size alone so a file that arrived as a part is not read; none for any other send.
+  async fn oversized(&self, send: &ChatSend) -> Result<Option<ChatRefusal>, ChatFailure> {
+    let ChatSend::Document { bytes, .. } = send else {
+      return Ok(None);
+    };
+    let size = bytes.size().await?;
+    let limit = POLICY.dialect.file_bytes;
+
+    Ok((size > limit).then(|| ChatRefusal::Platform {
+      label: self.label().to_owned(),
+      detail: format!("The file is {size} bytes, and Discord takes at most {limit}."),
+    }))
+  }
+
   /// The refusal the service answers with, from the error shape the gateway answered with. A send this
   /// provider does not perform was refused before the gateway was asked, so a gateway answer here is the
   /// platform's own refusal; any other answer is a failure of the call, not a refusal.
@@ -489,6 +505,15 @@ impl ChatProvider for DiscordProvider {
       }));
     }
 
+    if let Some(refusal) = self.oversized(&request.send).await? {
+      return Ok(ChatSendResult::Refused(refusal));
+    }
+
+    let request = ChatSendRequest {
+      send: inline(request.send).await?,
+      ..request
+    };
+
     match self.gateway.send(&self.spoken(request)).await {
       Ok(sent) => Ok(ChatSendResult::Sent(sent)),
       Err(GatewayFailure::Answered { status, body }) => {
@@ -496,6 +521,22 @@ impl ChatProvider for DiscordProvider {
       }
       Err(failure) => Err(failure.into()),
     }
+  }
+}
+
+/// The send as the seam takes it, every file inline (docs/boundary-api.md, 「The seam between the service and
+/// the gateway」): a document that arrived as a part is read from the spool, which the gateway would read whole
+/// anyway to hand Discord. The other kinds that carry files are not declared, so the send refuses them first.
+async fn inline(send: ChatSend) -> Result<ChatSend, ChatFailure> {
+  match send {
+    ChatSend::Document {
+      bytes: stored @ FileBody::Stored(_),
+      file_name,
+    } => Ok(ChatSend::Document {
+      bytes: stored.read().await?.into(),
+      file_name,
+    }),
+    other => Ok(other),
   }
 }
 

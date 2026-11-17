@@ -298,6 +298,7 @@ Every refusal is a bmo-chat refusal code with its English sentence, answered wit
 | a `human-avatar` send with no prefix | `platform` | "A human-avatar send needs a prefix, and neither the send nor BMO_DISCORD_AVATAR_PREFIX gives one." |
 | an edit, a reaction or a pin of a message this provider has not numbered | `platform` | "There is no message {message}." |
 | a sticker the pairing does not hold | `platform` | "No sticker is paired with {emoji}." |
+| a document larger than the dialect's `fileBytes` | `platform` | "The file is {size} bytes, and Discord takes at most {limit}." |
 | a send the declaration does not carry | `unsupported-capability` | |
 
 With no token set the provider is not configured, yet its health is ready, so the service answers what the
@@ -317,7 +318,8 @@ and the nine capabilities, read from a stand-in gateway's answer about the owner
 holds `peopleTyping` and `presence` declared as a stand-in gateway answers it hears each, and the service
 telling a stand-in receiving side a typing mark only of a room it listens to and a presence change only of the
 people who stand in one, a `whole` change whole. The room-modes test holds a room's voices narrowed to the
-active ones. The gateway's owner-account test, against a stand-in Discord,
+active ones. The document test holds a document held on disk going to a stand-in gateway inline, and one
+larger than the file limit refused by its size without the gateway being asked. The gateway's owner-account test, against a stand-in Discord,
 holds the confirmation (the named account confirmed; another account, a refused token and an unset token not),
 a room offered the owner's voices only while the account is confirmed, a `human-avatar` send going out behind
 the prefix and a `human-reader` send exactly as given, both on the bare user token, the bot account's send on

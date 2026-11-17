@@ -127,7 +127,9 @@ none, and a send in that voice with neither is refused. In every other voice `pr
 `human-reader` send carries the owner's words as given. A send whose `mode` names `own-account`, or a voice
 whose account is not held, is refused `platform`.
 
-Bytes — a document's `bytes` — are base64.
+A document's `bytes` come inline, as base64, or, in a multipart send, as a part (bmo-chat's `docs/protocol.md`,
+「Files carried as parts」). A document larger than the dialect's `fileBytes`, 25 MiB, is refused `platform`
+before its bytes are read.
 
 ## Messages
 

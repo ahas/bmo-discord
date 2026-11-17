@@ -82,7 +82,7 @@ one. A failure is answered with the protocol's error shape.
 | Route | Body | Answer |
 |---|---|---|
 | `GET /health` | | `ready` (boolean), `reason` (string or null) and `version`: ready where the bot token is unset, saying so, or where Discord has accepted it; not ready, saying which, while Discord has not yet answered and once it has rejected the token (`docs/discord.md`, 「The bot token」) |
-| `POST /sends` | the protocol's `ChatSendRequest`, of a kind the declaration carries | 201 with `messageId` and `missed`; a refusal or a failure in the error shape |
+| `POST /sends` | the protocol's `ChatSendRequest`, of a kind the declaration carries, as JSON with every file inline: a file the service received as a part is read from its spool into the body, after the service has refused one larger than the dialect's `fileBytes` | 201 with `messageId` and `missed`; a refusal or a failure in the error shape |
 | `GET /rooms/{roomId}` | | the protocol's `ProviderRoom`, its `modes` the voices whose account answers the room; the service keeps those its declaration has active. 404 `not-found` where the number is not this provider's |
 | `GET /owner` | | the protocol's `ProviderOwner`: `roomId` (number or null) |
 | `GET /owner-account` | | the protocol's `ChatHealth` read for the owner's account: `ready` once the gateway has confirmed it with Discord, `reason` why not, and `version` |

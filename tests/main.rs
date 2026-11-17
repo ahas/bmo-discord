@@ -2,6 +2,7 @@
 //! module of it, sharing the process.
 
 mod declaration;
+mod document;
 mod health;
 mod hearing;
 mod personal_data;
