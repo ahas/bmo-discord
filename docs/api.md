@@ -27,9 +27,10 @@ granted (`docs/discord.md`, 「Typing and presence」).
 It declares no `fetchMedia`, no `avatars`, no `history`, no `roomList` and no album, audio, voice or delete
 send, so the base refuses those before this provider is asked.
 
-Its `bot-account` mode is active where the bot token is set, and its `human-reader` and `human-avatar` modes,
-the owner's account sending, while the gateway has confirmed the owner's account with its own call; each is
-inactive otherwise, saying what it waits on. Its `own-account` mode is declared `unsupported`, with Discord's
+Its `bot-account` mode is active where the bot token is set and the gateway does not answer that Discord has
+not accepted it, and its `human-reader` and `human-avatar` modes, the owner's account sending, while the
+bot account's is and the gateway has confirmed the owner's account with its own call; each is inactive
+otherwise, saying what it waits on. Its `own-account` mode is declared `unsupported`, with Discord's
 terms as the reason (`docs/discord.md`, 「The declaration」).
 
 ## The wire
@@ -60,10 +61,17 @@ A send this provider does not perform is a refusal; its code is one of the refus
 
 | Route | Answers |
 |---|---|
-| `GET /health` | `ready` (boolean), `reason` (null when ready) and `version` (the service's own version) |
+| `GET /health` | `ready` (boolean), `reason` (why not while not ready; while ready, what is down, or null) and `version` (the service's own version) |
 
-The service answers ready once its gateway is ready and the bot token is set; the reason names the first
-setting missing while it is not.
+Health says whether the provider's processes serve, not whether a Discord application stands behind them:
+
+- **Ready** once the gateway answers that it is ready.
+- **Ready with no Discord application.** Where `BMO_DISCORD_TOKEN` is not set the provider is not configured,
+  and that is a mode down, not a process failing: the answer is ready, its `reason` names the missing setting
+  and every mode that is down. Every mode then stands inactive, and a send, a room or the owner is answered as
+  an unconfigured provider answers it (`docs/discord.md`, 「Refusals」).
+- **Not ready** while the gateway does not answer, while Discord has not yet answered whether it accepts the
+  bot token, and once Discord has rejected it; the `reason` says which.
 
 ## The owner's account
 
@@ -93,7 +101,8 @@ intent granted. The gateway answers from what it holds and makes no call on Disc
 a one-to-one, null for a room of several. `modes` are the voices whose account answers the room: `bot-account`
 in every room, and `human-reader` and `human-avatar` besides where the owner's account answers it
 (`docs/discord.md`, 「The owner's account」). The service answers the protocol's room with those of them its
-declaration has active, and with every active voice where the gateway names none.
+declaration has active, and with every active voice where the gateway names none. With no bot token set the
+service owns no room and answers 404 `not-found` without asking the gateway.
 
 ## The owner
 

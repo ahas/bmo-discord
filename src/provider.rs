@@ -24,16 +24,29 @@ pub const KEY: &str = "discord";
 const BOT_TOKEN_MISSING: &str = "BMO_DISCORD_TOKEN not set";
 const OWNER_UNANSWERED: &str = "the gateway has not said whether the owner's account is confirmed";
 const HEARING_UNANSWERED: &str = "the gateway has not said what its socket hears";
+const GATEWAY_UNANSWERED: &str = "the gateway has not answered yet";
+const GATEWAY_NOT_READY: &str = "the gateway is not ready";
 
 /// How often the gateway is asked whether it is ready.
 const HEALTH_EVERY: Duration = Duration::from_secs(5);
+
+/// What the service last heard of the gateway's health.
+#[derive(Clone)]
+enum GatewayHeard {
+  /// Not asked yet.
+  Unasked,
+  /// Asked, with no answer: why.
+  Unreached(String),
+  /// The gateway's answer.
+  Answered(ChatHealth),
+}
 
 pub struct DiscordProvider {
   config: Config,
   dialect: DiscordMarkdown,
   gateway: Gateway,
   /// The gateway's last answer about its health.
-  gateway_health: Arc<RwLock<ChatHealth>>,
+  gateway_health: Arc<RwLock<GatewayHeard>>,
   /// Why the owner's account is not confirmed, from the gateway's last answer; none once it is.
   owner_unconfirmed: Arc<RwLock<Option<String>>>,
   /// What the bot account's socket hears beside messages, from the gateway's last answer.
@@ -47,10 +60,7 @@ impl DiscordProvider {
       config,
       dialect: DiscordMarkdown::new(),
       gateway,
-      gateway_health: Arc::new(RwLock::new(ChatHealth::not_ready(
-        env!("CARGO_PKG_VERSION"),
-        "the gateway has not answered yet",
-      ))),
+      gateway_health: Arc::new(RwLock::new(GatewayHeard::Unasked)),
       owner_unconfirmed: Arc::new(RwLock::new(Some(OWNER_UNANSWERED.to_owned()))),
       hearing: Arc::new(RwLock::new(Hearing::neither(HEARING_UNANSWERED))),
       watching: Mutex::new(None),
@@ -67,15 +77,65 @@ impl DiscordProvider {
       .collect()
   }
 
-  /// The first setting the bot account is missing, or none where its token is set.
-  fn bot_missing(&self) -> Option<&'static str> {
-    (!self.config.bot_token).then_some(BOT_TOKEN_MISSING)
+  /// What the bot account waits on: its token where it is not set, then what the gateway answered where it
+  /// answered that it is not ready, which is Discord not having accepted the token; none otherwise.
+  fn bot_missing(&self) -> Option<String> {
+    if !self.config.bot_token {
+      return Some(BOT_TOKEN_MISSING.to_owned());
+    }
+
+    match self.gateway_heard() {
+      GatewayHeard::Answered(ChatHealth {
+        ready: false,
+        reason,
+        ..
+      }) => Some(reason.unwrap_or_else(|| GATEWAY_NOT_READY.to_owned())),
+      _ => None,
+    }
+  }
+
+  /// What the service last heard of the gateway's health.
+  fn gateway_heard(&self) -> GatewayHeard {
+    self.gateway_health.read().map_or_else(
+      |_| GatewayHeard::Unreached("the gateway's health could not be read".to_owned()),
+      |held| held.clone(),
+    )
+  }
+
+  /// Asks the gateway whether it is ready, and holds the answer health and the bot account's mode stand on.
+  pub async fn read_gateway_health(&self) {
+    Self::hold_gateway_health(&self.gateway, &self.gateway_health).await;
+  }
+
+  async fn hold_gateway_health(gateway: &Gateway, held: &RwLock<GatewayHeard>) {
+    let answer = gateway
+      .health()
+      .await
+      .map_or_else(|why| GatewayHeard::Unreached(why.to_string()), GatewayHeard::Answered);
+
+    if let Ok(mut held) = held.write() {
+      *held = answer;
+    }
+  }
+
+  /// Where the provider is not configured, the missing setting and every mode down for it, as health says
+  /// them beside a ready answer; none where it is configured.
+  fn unconfigured(&self) -> Option<String> {
+    let missing = self.configured()?;
+    let down: Vec<String> = self
+      .modes()
+      .into_iter()
+      .filter(|mode| mode.standing == ChatModeStanding::Inactive)
+      .map(|mode| voice_name(mode.voice))
+      .collect();
+
+    Some(format!("not configured: {missing}; the {} modes are down", down.join(", ")))
   }
 
   /// What the owner's account waits on: the bot account's setting first, since what the owner's account says
   /// is read back on the bot's socket, then the gateway's confirmation of the account.
   fn owner_missing(&self) -> Option<String> {
-    self.bot_missing().map(str::to_owned).or_else(|| {
+    self.bot_missing().or_else(|| {
       self
         .owner_unconfirmed
         .read()
@@ -263,7 +323,7 @@ impl ChatProvider for DiscordProvider {
   }
 
   fn configured(&self) -> Option<String> {
-    self.bot_missing().map(str::to_owned)
+    (!self.config.bot_token).then(|| BOT_TOKEN_MISSING.to_owned())
   }
 
   /// The gateway reads the rooms; the service only keeps asking it whether it is ready, whether it has
@@ -273,21 +333,9 @@ impl ChatProvider for DiscordProvider {
     let health = self.gateway_health.clone();
     let owner = self.owner_unconfirmed.clone();
     let hearing = self.hearing.clone();
-    let version = self.version().to_owned();
     let watching = tokio::spawn(async move {
       loop {
-        let answer = gateway.health().await.map_or_else(
-          |why| ChatHealth::not_ready(version.clone(), format!("the gateway does not answer: {why}")),
-          |answer| ChatHealth {
-            version: version.clone(),
-            ..answer
-          },
-        );
-
-        if let Ok(mut held) = health.write() {
-          *held = answer;
-        }
-
+        Self::hold_gateway_health(&gateway, &health).await;
         Self::hold_owner_account(&gateway, &owner).await;
         Self::hold_hearing(&gateway, &hearing).await;
 
@@ -310,23 +358,31 @@ impl ChatProvider for DiscordProvider {
     }
   }
 
-  /// Ready once the gateway says it is ready.
+  /// Ready once the gateway answers that it is ready (docs/api.md, 「Health」). A provider with no bot token is
+  /// ready all the same, its reason naming the setting and the modes down: no Discord application is a mode
+  /// down, not a process failing.
   fn health(&self) -> ChatHealth {
-    if let Some(reason) = self.configured() {
-      return ChatHealth::not_ready(self.version(), reason);
-    }
+    let version = self.version();
 
-    self.gateway_health.read().map_or_else(
-      |_| ChatHealth::not_ready(self.version(), "the gateway's health could not be read"),
-      |held| ChatHealth {
-        version: self.version().to_owned(),
-        ..held.clone()
+    match self.gateway_heard() {
+      GatewayHeard::Unasked => ChatHealth::not_ready(version, GATEWAY_UNANSWERED),
+      GatewayHeard::Unreached(why) => ChatHealth::not_ready(version, why),
+      GatewayHeard::Answered(ChatHealth {
+        ready: false,
+        reason,
+        ..
+      }) => ChatHealth::not_ready(version, reason.unwrap_or_else(|| GATEWAY_NOT_READY.to_owned())),
+      GatewayHeard::Answered(_) => ChatHealth {
+        ready: true,
+        reason: self.unconfigured(),
+        version: version.to_owned(),
       },
-    )
+    }
   }
 
-  /// The bot account's mode stands on its token, read as the service starts; the owner's account's on the
-  /// gateway's confirmation of it, read as the service runs.
+  /// The bot account's mode stands on its token, read as the service starts, and on the gateway not answering
+  /// that Discord has not accepted it; the owner's account's on the bot account's and on the gateway's
+  /// confirmation of it, both read as the service runs.
   fn modes(&self) -> Vec<ChatReadMode> {
     let owner = self.owner_missing();
 
@@ -334,7 +390,7 @@ impl ChatProvider for DiscordProvider {
       // The official bot account, delivered a room's every message. What it needs besides the token is the
       // MESSAGE_CONTENT intent, which is privileged: an application that has not been given it is refused at
       // the gateway rather than quietly handed empty messages. An answer can be pinned to what it delivered.
-      Self::account_mode(ChatVoice::BotAccount, self.bot_missing(), true),
+      Self::account_mode(ChatVoice::BotAccount, self.bot_missing().as_deref(), true),
       // The owner's own account, sending in his own words and in the agent's behind its prefix. It reads
       // nothing itself, so nothing it delivered can be answered pinned.
       Self::account_mode(ChatVoice::HumanReader, owner.as_deref(), false),
@@ -383,8 +439,13 @@ impl ChatProvider for DiscordProvider {
     }
   }
 
-  /// The gateway's room, its `modes` narrowed to the voices the declaration has active.
+  /// The gateway's room, its `modes` narrowed to the voices the declaration has active. An unconfigured
+  /// provider owns no room, and the gateway is not asked.
   async fn room(&self, room_id: i64) -> Result<Option<ProviderRoom>, ChatFailure> {
+    if self.configured().is_some() {
+      return Ok(None);
+    }
+
     match self.gateway.room(room_id).await {
       Ok(room) => {
         let active = self.active_voices();
@@ -403,7 +464,12 @@ impl ChatProvider for DiscordProvider {
     }
   }
 
+  /// The owner's room as the gateway answers it; none for an unconfigured provider, without asking.
   async fn owner_room(&self) -> Result<Option<i64>, ChatFailure> {
+    if self.configured().is_some() {
+      return Ok(None);
+    }
+
     let answer = self.gateway.owner().await?;
 
     Ok(answer.room_id)
@@ -416,6 +482,13 @@ impl ChatProvider for DiscordProvider {
       return Ok(ChatSendResult::Refused(refusal));
     }
 
+    // An unconfigured provider sends nothing; the base does not turn the send away, since its health is ready.
+    if self.configured().is_some() {
+      return Ok(ChatSendResult::Refused(ChatRefusal::NotReady {
+        label: self.label().to_owned(),
+      }));
+    }
+
     match self.gateway.send(&self.spoken(request)).await {
       Ok(sent) => Ok(ChatSendResult::Sent(sent)),
       Err(GatewayFailure::Answered { status, body }) => {
@@ -424,4 +497,12 @@ impl ChatProvider for DiscordProvider {
       Err(failure) => Err(failure.into()),
     }
   }
+}
+
+/// A voice by its name on the wire, as a person reading the health answer finds it in the declaration.
+fn voice_name(voice: ChatVoice) -> String {
+  serde_json::to_value(voice)
+    .ok()
+    .and_then(|name| name.as_str().map(str::to_owned))
+    .unwrap_or_else(|| format!("{voice:?}"))
 }

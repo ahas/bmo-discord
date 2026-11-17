@@ -18,6 +18,7 @@ import { discordPolicy, discordWords, fillMarks, senderName } from "./settings";
 import { channelName, directRecipient, editMessage, pin, react, sendFile, sendImage, sendMessage, sendSticker, typing } from "./api";
 import { accountFor, accountIdFromToken, botAccount, botTokenMissing, discordConfig, isOwnerVoice, voiceMissing } from "./config";
 import { openGateway } from "./gateway";
+import { acceptBotToken, botTokenAnswer, confirmBotToken, forgetBotToken, rejectBotToken } from "./bot";
 import { keepConfirming, onOwnerAccount, ownerConfirmation } from "./owner";
 import { PresenceBook, keepCheckingPresence, presenceGrant, refusePresence } from "./presence";
 import { Refusal, notReady, platformRefusal } from "./chat";
@@ -401,6 +402,7 @@ let sessionPresence = false;
 export interface DiscordProvider {
   key: string;
   configured(): string | null;
+  health(): { ready: boolean; reason: string | null };
   start(deps: { archive: Store; service: Service }): void;
   stop(): void;
   room(chatId: number): Promise<ProviderRoom | null>;
@@ -432,6 +434,18 @@ export const discordProvider: DiscordProvider = {
   key: discordKey,
   configured: () => (discordConfig() === null ? botTokenMissing : null),
 
+  // Ready while the gateway serves, unless a bot token is set that Discord has not accepted: with no token the
+  // provider is not configured, which is a mode down rather than a gateway failing, and the answer says so.
+  health() {
+    if (discordConfig() === null) {
+      return { ready: true, reason: botTokenMissing };
+    }
+
+    const { accepted, reason } = botTokenAnswer();
+
+    return { ready: accepted, reason };
+  },
+
   start(deps) {
     const discord = discordConfig();
 
@@ -440,6 +454,8 @@ export const discordProvider: DiscordProvider = {
     }
 
     stopConfirming = keepConfirming(discord);
+    forgetBotToken();
+    void confirmBotToken(discord);
 
     const account = botAccount(discord);
     const road: DiscordRoad = { discord, archive: deps.archive, service: deps.service, account };
@@ -460,8 +476,10 @@ export const discordProvider: DiscordProvider = {
         sessionPresence = false;
         refusePresence();
       },
+      tokenRejected: () => rejectBotToken("the socket closed with authentication failed"),
       opened: (guildIds) => {
         socketRuns = true;
+        acceptBotToken();
 
         if (guildIds !== null && sessionPresence) {
           book.started(guildIds);

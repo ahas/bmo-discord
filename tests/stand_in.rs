@@ -16,6 +16,14 @@ pub async fn gateway(routes: Router) -> u16 {
   port
 }
 
+/// A loopback port just let go, so a call on it is refused at once: a gateway that does not serve.
+pub fn closed_port() -> u16 {
+  std::net::TcpListener::bind("127.0.0.1:0")
+    .and_then(|listener| listener.local_addr())
+    .expect("a loopback port is free")
+    .port()
+}
+
 /// A provider whose service reads the bot token as given and calls the gateway at `port`.
 pub fn provider(bot_token: bool, port: u16) -> DiscordProvider {
   let config = Config {

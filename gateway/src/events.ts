@@ -46,6 +46,10 @@ export function gatewayIntents(presence: boolean): number {
 // application. It is not a connection that failed: nothing about trying again makes it work.
 export const disallowedIntentsClose = 4014;
 
+// The close code the gateway sends when the token an identify carried is not one it accepts. Trying again
+// sends the same token, so it is not a connection that failed either.
+export const authenticationFailedClose = 4004;
+
 export interface GatewayFrame {
   op: number;
   d?: unknown;

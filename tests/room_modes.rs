@@ -30,15 +30,12 @@ async fn rooms() -> u16 {
 }
 
 #[tokio::test]
-async fn a_room_takes_the_bot_voice_where_the_token_is_set_and_none_where_it_is_not() {
+async fn a_room_takes_the_bot_voice_where_the_token_is_set() {
   let port = rooms().await;
 
   let room = provider(true, port).room(-5).await.unwrap().expect("the gateway knows the room");
   assert_eq!(room.identity, Some(7));
   assert_eq!(room.modes, Some(vec![ChatVoice::BotAccount]));
-
-  let room = provider(false, port).room(-5).await.unwrap().expect("the gateway knows the room");
-  assert_eq!(room.modes, Some(vec![]));
 }
 
 #[tokio::test]

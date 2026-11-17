@@ -127,7 +127,7 @@
         },
         "responses": {
           "200": {
-            "description": "Whether the gateway is ready, why not where it is not, and its version.",
+            "description": "Whether the gateway is ready, why not where it is not, the bot token unset where it is ready without one (docs/discord.md, The bot token), and its version.",
             "content": {
               "application/json": {
                 "schema": {

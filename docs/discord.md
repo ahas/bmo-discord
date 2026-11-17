@@ -41,18 +41,20 @@ is set up and what it can do.
 
 The modes. The bot account's stands on its token: the service reads the setting as it starts, so a token put in
 place stands the mode up with the next start, and the gateway reads it each time it opens its socket or sends.
+While the gateway answers that Discord has not accepted the token, the mode waits on that (「The bot token」).
 The two on the owner's account stand on the gateway having confirmed that account with its own call, which the
 service reads from the gateway as it runs (「The owner's account」).
 
 | Voice | Reach | Standing | `canReplyTo` |
 |---|---|---|---|
-| `bot-account` | `all-messages` | active when `BMO_DISCORD_TOKEN` is set | true |
-| `human-reader` | `all-messages` | active when `BMO_DISCORD_TOKEN` is set and the gateway has confirmed the owner's account | false |
-| `human-avatar` | `all-messages` | active when `BMO_DISCORD_TOKEN` is set and the gateway has confirmed the owner's account | false |
+| `bot-account` | `all-messages` | active when `BMO_DISCORD_TOKEN` is set and the gateway does not answer that Discord has not accepted it | true |
+| `human-reader` | `all-messages` | active when `bot-account` is and the gateway has confirmed the owner's account | false |
+| `human-avatar` | `all-messages` | active when `bot-account` is and the gateway has confirmed the owner's account | false |
 | `own-account` | `all-messages` | `unsupported` | false |
 
-An inactive mode's reason says what it waits on: the bot token where it is missing, and otherwise, for the
-owner's account, what the gateway's confirmation answered.
+An inactive mode's reason says what it waits on: the bot token where it is missing, what the gateway answered
+of the bot token where Discord has not accepted it, and otherwise, for the owner's account, what the gateway's
+confirmation answered.
 
 - **The bot account reads every room.** It is the one account the provider holds a socket for, and every
   message a room says, the owner's among them, is delivered on it.
@@ -77,6 +79,9 @@ owner's account, what the gateway's confirmation answered.
   the identify asked for presence, takes the presence intent away and opens the socket again without it; met
   without it, the code stops the bot account's socket, with one line naming MESSAGE_CONTENT, instead of
   reconnecting for ever.
+- **A rejected token is not a blip either.** The close code that says authentication failed stops the bot
+  account's socket, with one line saying Discord rejected `BMO_DISCORD_TOKEN`, and the gateway holds the token
+  as rejected (「The bot token」).
 - **The socket runs** from the session's ready, or its resume, until it closes.
 - **Every request of the bot account carries its token under the `Bot ` scheme**, and the identify names the
   intents the provider reads with: the guilds, guild and direct messages, MESSAGE_CONTENT, guild and direct
@@ -85,6 +90,24 @@ owner's account, what the gateway's confirmation answered.
   room before the socket is open.
 - **The socket identifies itself** with the client name `BMO_DISCORD_CLIENT_NAME` gives.
 - **Guild channels and one-to-one DMs are this provider's rooms.** A bot account is never in a group DM.
+
+## The bot token
+
+Whether Discord accepts `BMO_DISCORD_TOKEN` is the gateway's to find out, and health and the bot account's mode
+stand on it (`docs/api.md`, 「Health」).
+
+- **Without the token nothing is asked.** The provider is not configured: the gateway answers ready and says the
+  token is not set, and every mode is down.
+- **The gateway asks Discord as it starts**, through the bot account: the current-user call, `GET /users/@me`.
+  Discord answering with the account accepts the token; Discord refusing it as unauthorized or forbidden rejects
+  it; a check that does not reach Discord, or meets any other failure, leaves it not yet answered.
+- **The socket answers it too.** A session's ready accepts the token, and the close code that says
+  authentication failed rejects it and stops the socket (「The socket」). So a token the first check could not
+  ask about is accepted once the socket's session is ready.
+- **The answer stands until Discord gives another.** An accepted token stays accepted through a dropped socket;
+  a rejected one stays rejected until the gateway starts again, a new token with it.
+- **While the token is not yet accepted, or rejected,** the gateway answers not ready saying which, and the
+  service's health and the `bot-account` mode say the same.
 
 ## Which account answers a room
 
@@ -277,9 +300,17 @@ Every refusal is a bmo-chat refusal code with its English sentence, answered wit
 | a sticker the pairing does not hold | `platform` | "No sticker is paired with {emoji}." |
 | a send the declaration does not carry | `unsupported-capability` | |
 
+With no token set the provider is not configured, yet its health is ready, so the service answers what the
+base would otherwise turn away as not ready itself, without asking the gateway: a send is refused `not-ready`,
+a room is none this provider owns, and the owner has no room.
+
 ## Tests
 
-The declaration test holds the modes and the capabilities the service declares: `bot-account` active when its
+The health test holds the service's health: ready with no bot token, its reason naming the missing setting and
+every mode down, with a send, a room and the owner answered as an unconfigured provider answers them without
+asking the gateway; ready once a stand-in gateway answers ready with the token set; and not ready, with the
+`bot-account` mode waiting on it, where the stand-in gateway answers that Discord rejected the token. The
+declaration test holds the modes and the capabilities the service declares: `bot-account` active when its
 token is set, `human-reader` and `human-avatar` active once the gateway has confirmed the owner's account and
 inactive saying what they wait on otherwise, `own-account` unsupported with the terms' words whatever is set,
 and the nine capabilities, read from a stand-in gateway's answer about the owner's account. The hearing test
@@ -290,7 +321,9 @@ active ones. The gateway's owner-account test, against a stand-in Discord,
 holds the confirmation (the named account confirmed; another account, a refused token and an unset token not),
 a room offered the owner's voices only while the account is confirmed, a `human-avatar` send going out behind
 the prefix and a `human-reader` send exactly as given, both on the bare user token, the bot account's send on
-its `Bot ` scheme, and a `human-avatar` send with no prefix refused. The gateway's typing-and-presence test
+its `Bot ` scheme, and a `human-avatar` send with no prefix refused. The gateway's bot-token test, against a stand-in Discord, holds the gateway's
+health: ready saying the token is not set where it is unset, not ready until Discord has answered, ready once
+Discord accepts the token and not ready, naming the rejection, once Discord refuses it. The gateway's typing-and-presence test
 holds a typing start told as a ten-second mark only in a numbered room and never of the bot account, the
 owner's typing start passed over within a mark's life of this provider typing through his account, a typing
 send for another account refused with nothing typed, the identify asking for the typing intents always and for

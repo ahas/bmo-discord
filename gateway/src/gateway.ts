@@ -8,6 +8,7 @@
 // use, and a dependency that speaks for a platform is a dependency that decides for it.
 
 import {
+  authenticationFailedClose,
   disallowedIntentsClose,
   gatewayOps,
   heartbeatFrame,
@@ -41,6 +42,8 @@ export interface GatewayListener {
   asksPresence(): boolean;
   // Discord refused an identify that asked for the presence intent, which it has not granted.
   presenceRefused(): void;
+  // Discord refused the token the identify carried; the socket has stood down.
+  tokenRejected(): void;
   // A session ready, with the guilds it names, or one resumed, with none.
   opened(guildIds: string[] | null): void;
   // The socket closed; it runs again once a session is ready or resumed.
@@ -199,6 +202,14 @@ export function openGateway(account: { token: string }, listener: GatewayListene
         askedPresence = false;
         guarded("the presence intent's refusal", () => listener.presenceRefused());
         reopening = setTimeout(connect, 0);
+
+        return;
+      }
+
+      if (event.code === authenticationFailedClose) {
+        stopped = true;
+        console.error("discord: the gateway rejected BMO_DISCORD_TOKEN — the bot account's socket stands down");
+        guarded("the token's rejection", () => listener.tokenRejected());
 
         return;
       }

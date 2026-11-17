@@ -81,7 +81,7 @@ one. A failure is answered with the protocol's error shape.
 
 | Route | Body | Answer |
 |---|---|---|
-| `GET /health` | | `ready` (boolean), `reason` (string or null) and `version` |
+| `GET /health` | | `ready` (boolean), `reason` (string or null) and `version`: ready where the bot token is unset, saying so, or where Discord has accepted it; not ready, saying which, while Discord has not yet answered and once it has rejected the token (`docs/discord.md`, 「The bot token」) |
 | `POST /sends` | the protocol's `ChatSendRequest`, of a kind the declaration carries | 201 with `messageId` and `missed`; a refusal or a failure in the error shape |
 | `GET /rooms/{roomId}` | | the protocol's `ProviderRoom`, its `modes` the voices whose account answers the room; the service keeps those its declaration has active. 404 `not-found` where the number is not this provider's |
 | `GET /owner` | | the protocol's `ProviderOwner`: `roomId` (number or null) |
@@ -120,7 +120,10 @@ The platform's own, kept as they have always been named:
 | `BMO_DISCORD_OWNER_CHANNEL` | gateway | the DM channel that is the owner's one-to-one with the agent; a channel says it is a DM, never whose |
 | `BMO_DISCORD_STICKERS` | gateway | the agent's stickers as `emoji:id` pairs separated by commas; a sticker asked for by an emoji not paired is refused |
 
-Without `BMO_DISCORD_TOKEN` the provider is not configured and says so, and every mode stays down.
+Without `BMO_DISCORD_TOKEN` the provider is not configured and says so, and every mode stays down. That is a
+deployment with no Discord application, not a failing one: both processes serve, and health answers ready,
+naming the missing setting and the modes that are down (`docs/api.md`, 「Health」). A token that is set but that
+Discord rejects is a failing deployment, and health answers not ready.
 
 The owner's account, which the `human-reader` and `human-avatar` modes send through (`docs/discord.md`, 「The
 owner's account」). An operator who stands them up sets the owner's token and id beside the bot token, and the
@@ -152,7 +155,9 @@ This provider's own:
 ## Commands
 
 The service's binary, `bmo-discord`, has two verbs: `serve` runs the service, and `health` answers 0 once the
-running service's own `GET /health` says ready, for the deployment's health check.
+running service's own `GET /health` says ready, for the deployment's health check. Where the ready answer
+carries a reason, such as a provider with no Discord application, `health` prints it on one line. It answers 1,
+with the reason, where the service does not answer or answers not ready.
 
 ## The clients
 

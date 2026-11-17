@@ -52,9 +52,7 @@ async function answer(request: Request): Promise<Response> {
   const path = new URL(request.url).pathname;
 
   if (request.method === "GET" && path === "/health") {
-    const missing = discordProvider.configured();
-
-    return Response.json({ ready: missing === null, reason: missing, version: packageFile.version });
+    return Response.json({ ...discordProvider.health(), version: packageFile.version });
   }
 
   if (request.method === "GET" && path === "/owner-account") {

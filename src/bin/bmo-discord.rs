@@ -118,6 +118,11 @@ async fn health() -> Result<(), String> {
     answer.json().await.map_err(|why| format!("the service answered {status}: {why}"))?;
 
   if health.ready {
+    // A ready answer can still say what is down, such as a provider with no Discord application.
+    if let Some(reason) = health.reason {
+      println!("bmo-discord: ready; {reason}");
+    }
+
     Ok(())
   } else {
     Err(format!("the service is not ready: {}", health.reason.unwrap_or_default()))
