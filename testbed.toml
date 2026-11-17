@@ -19,20 +19,10 @@ korean_ledger = "korean-ledger.json"
 [check.shared_versions]
 repository = "bmo-chat"
 
-[[check.step]]
-id = "check"
-command = "cargo check --all-targets"
-lane = "wide"
-
-[[check.step]]
-id = "clippy"
-command = "cargo clippy --all-targets -- -D warnings"
-lane = "wide"
-
-[[check.step]]
-id = "fmt"
-command = "cargo fmt --check"
-
+# No static step is declared for the service. The testbed's own Cargo workspace check formats and lints the
+# package, every target compiled, through its Cargo verb in the shared build directory, wherever a change marks
+# it, and the change check compiles every crate a change marks; a change that marks none has no Rust to judge.
+# The one declared step is the gateway's type check, which the testbed does not run on its own.
 [[check.step]]
 id = "gateway-types"
 command = "./node_modules/.bin/tsc --noEmit"
