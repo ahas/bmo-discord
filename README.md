@@ -8,7 +8,7 @@ account made for the agent is run, since Discord's terms forbid automating one.
 
 ## Tests and the test account
 
-- **Most behaviour tests are deferred.** The suite holds the repository-wide personal-data check, the
+- **Most behaviour tests are deferred.** The suite holds the
   declaration, room-modes and hearing tests, and the gateway's owner-account and typing-and-presence tests
   against a stand-in Discord.
 - **The declaration test** holds the modes and the capabilities the service declares, whatever tokens are set
@@ -21,7 +21,7 @@ account made for the agent is run, since Discord's terms forbid automating one.
   Discord's states mapped, and each person told beside the rooms they stand in.
 - **The owner-account test** (`gateway/tests/`) holds the gateway's confirmation of the owner's account and the
   prefix a `human-avatar` send carries, which a `human-reader` send does not.
-- **The personal-data check reads every tracked file** for a mail address, a home path, a telephone number, a
+- **The testbed's `personal-data` check reads every tracked file** for a mail address, a home path, a telephone number, a
   token and a private network address, and names the file, the line and the kind of each finding
   (`PERSONAL-DATA.md`).
 - **No Discord test account is connected**, so nothing here has been tried against a live Discord server.
@@ -36,7 +36,7 @@ account made for the agent is run, since Discord's terms forbid automating one.
 | `lang/` | the words a person reads that this provider draws: the platform's label and the marks a message is handed over with |
 | `tools/` | `generate.ts`, which writes both clients from `docs/openapi.json` |
 | `deploy/` | the two service units a deployment links: the Rust service and the bun gateway |
-| `tests/` | the repository's checks: the personal-data check over every tracked file, the declaration test, and the room-modes test |
+| `tests/` | the repository's checks: the declaration test and the room-modes test |
 | `docs/` | the canonical statements of what the provider does |
 
 At the root stand the Cargo manifest of the service's one package, the version in `VERSION`, `testbed.toml`

@@ -35,12 +35,11 @@ loopback, holds the bot account's socket, makes every REST call and keeps the pr
   documents and commit messages. A refusal is a bmo-chat refusal code with an English sentence. No code file
   holds Hangul.
 - **No agent names, owner names, host names, home paths or private network addresses** in code, documents or
-  commits. `PERSONAL-DATA.md` states the prohibition whole and `tests/personal_data.rs` holds it. A deployment
+  commits. `PERSONAL-DATA.md` states the prohibition whole and the testbed's `personal-data` check holds it. A deployment
   value that would name one is configuration (`docs/boundary-api.md`, 「Configuration」).
 - **Tests live in `tests/`** for the service and `gateway/tests/` for the gateway; no test module sits beside
   runtime code. The service's are one test target, `tests/main.rs`, each file of tests a module of it
-  (bmo-chat's `docs/conventions.md`, 「Rust builds」). The suite holds the repository-wide personal-data check; the behaviour tests are deferred in
-  this phase.
+  (bmo-chat's `docs/conventions.md`, 「Rust builds」). The behaviour tests are deferred in this phase.
 - **No directory named after its parent** (no `x/x`), and **only Cargo manifests at the root**: the root
   `Cargo.toml` is the service's one package. The gateway's `package.json` is in `gateway/`.
 - **Documents state what is true now**: no change history, no quoted source and no file-and-line pins.

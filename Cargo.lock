@@ -199,7 +199,6 @@ dependencies = [
  "bmo-chat",
  "bmo-text",
  "clap",
- "regex",
  "reqwest",
  "serde",
  "serde_json",
