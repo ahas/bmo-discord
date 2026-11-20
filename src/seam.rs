@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use bmo_chat::{ChatHealth, ChatSendRequest, ChatSent, ProviderOwner, ProviderRoom};
+use bmo_chat::{ChatHealth, ChatMembers, ChatSendRequest, ChatSent, ProviderOwner, ProviderRoom};
 use reqwest::{Client, Method};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -107,6 +107,11 @@ impl Gateway {
   /// One room as the gateway knows it; the caller reads a 404 as a room this provider does not own.
   pub async fn room(&self, room_id: i64) -> Result<ProviderRoom, GatewayFailure> {
     self.call(Method::GET, &format!("/rooms/{room_id}"), None::<&()>).await
+  }
+
+  /// A room's members as the gateway lists them; the caller reads a 404 as members not held, for its reason.
+  pub async fn members(&self, room_id: i64) -> Result<ChatMembers, GatewayFailure> {
+    self.call(Method::GET, &format!("/rooms/{room_id}/members"), None::<&()>).await
   }
 
   /// The room to speak into to reach the owner unprompted, or null.

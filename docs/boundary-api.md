@@ -12,8 +12,8 @@ The provider is two processes of one repository:
   what its rooms say to the receiver. It is the only process another unit talks to.
 - **the gateway**, the bun package in `gateway/`. It holds the bot account's gateway socket and the owner's
   account's token, and makes every REST call to Discord: it reads the rooms, performs the sends, answers the
-  room questions and keeps the provider's own numbers (`docs/discord.md`, 「Numbering」). Only the service calls
-  it, over the loopback.
+  room questions, lists a room's members and keeps the provider's own numbers (`docs/discord.md`,
+  「Numbering」). Only the service calls it, over the loopback.
 
 ```mermaid
 flowchart LR
@@ -84,6 +84,7 @@ one. A failure is answered with the protocol's error shape.
 | `GET /health` | | `ready` (boolean), `reason` (string or null) and `version`: ready where the bot token is unset, saying so, or where Discord has accepted it; not ready, saying which, while Discord has not yet answered and once it has rejected the token (`docs/discord.md`, 「The bot token」) |
 | `POST /sends` | the protocol's `ChatSendRequest`, of a kind the declaration carries, as JSON with every file inline: a file the service received as a part is read from its spool into the body, after the service has refused one larger than the dialect's `fileBytes` | 201 with `messageId` and `missed`; a refusal or a failure in the error shape |
 | `GET /rooms/{roomId}` | | the protocol's `ProviderRoom`, its `modes` the voices whose account answers the room; the service keeps those its declaration has active. 404 `not-found` where the number is not this provider's |
+| `GET /rooms/{roomId}/members` | | the protocol's `ChatMembers`: `members`, each `person`, `name` and `statusMessage` (`docs/discord.md`, 「The members of a room」). 404 `not-found` with the reason where the gateway holds no members of the room |
 | `GET /owner` | | the protocol's `ProviderOwner`: `roomId` (number or null) |
 | `GET /owner-account` | | the protocol's `ChatHealth` read for the owner's account: `ready` once the gateway has confirmed it with Discord, `reason` why not, and `version` |
 | `GET /hearing` | | what the bot account's socket hears beside messages: `peopleTyping` and `presence`, each `heard` (boolean) and `reason` (string or null) |

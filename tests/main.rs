@@ -5,5 +5,6 @@ mod declaration;
 mod document;
 mod health;
 mod hearing;
+mod members;
 mod room_modes;
 mod stand_in;

@@ -1,7 +1,7 @@
 # The Discord provider's fixed values (docs/discord.md). The words a person reads are in `lang/ko.toml`.
 
-# What the provider sends, as its declaration's `can`.
-can = ["text", "replyTo", "photo", "document", "sticker", "reaction", "pin", "typing", "edit"]
+# What the provider sends, and the members of a room it lists, as its declaration's `can`.
+can = ["text", "replyTo", "photo", "document", "sticker", "reaction", "pin", "typing", "edit", "memberList"]
 
 # Discord's terms forbid automating a user account. `own-account`, on an account made for the agent, is declared
 # unsupported with the terms' own words as its reason; the owner's own account runs on his own settings and at

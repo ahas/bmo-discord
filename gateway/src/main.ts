@@ -4,6 +4,7 @@
 import packageFile from "../package.json";
 
 import { holdChatMachine } from "./machine";
+import { roomMembers } from "./members";
 import { discordProvider } from "./provider";
 import { Refusal } from "./chat";
 import { Service } from "./seam";
@@ -36,9 +37,9 @@ async function bodyOf(request: Request): Promise<Record<string, unknown> | null>
   }
 }
 
-// The room number a room path names, or null where the path names none.
-function roomIdOf(path: string): number | null {
-  const match = /^\/rooms\/(-?\d+)$/.exec(path);
+// The room number a room path names, `tail` after it, or null where the path names none.
+function roomIdOf(path: string, tail = ""): number | null {
+  const match = new RegExp(`^/rooms/(-?\\d+)${tail}$`).exec(path);
   const roomId = match?.[1] === undefined ? Number.NaN : Number(match[1]);
 
   return Number.isSafeInteger(roomId) ? roomId : null;
@@ -67,6 +68,14 @@ async function answer(request: Request): Promise<Response> {
 
   if (request.method === "GET" && path === "/owner") {
     return Response.json({ roomId: await discordProvider.ownerRoom() });
+  }
+
+  const membersOf = request.method === "GET" ? roomIdOf(path, "/members") : null;
+
+  if (membersOf !== null) {
+    const members = await roomMembers(membersOf);
+
+    return "unheld" in members ? failure(404, "not-found", members.unheld) : Response.json(members);
   }
 
   if (request.method === "GET") {

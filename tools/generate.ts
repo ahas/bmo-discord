@@ -91,6 +91,14 @@ function rustMethod(operation: Operation): string {
 `;
   }
 
+  if (operation.name === "members") {
+    return `  /// A room's members as the gateway lists them; the caller reads a 404 as members not held, for its reason.
+  pub async fn members(&self, room_id: i64) -> Result<${operation.answer}, GatewayFailure> {
+    self.call(Method::${operation.method}, &format!("${path}"), None::<&()>).await
+  }
+`;
+  }
+
   if (operation.name === "owner") {
     return `  /// The room to speak into to reach the owner unprompted, or null.
   pub async fn owner(&self) -> Result<${operation.answer}, GatewayFailure> {
@@ -124,7 +132,7 @@ function rust(): string {
   return `${header("The service's client of the gateway: the loopback routes the gateway serves in docs/api.md.")}
 use std::fmt;
 
-use bmo_chat::{ChatHealth, ChatSendRequest, ChatSent, ProviderOwner, ProviderRoom};
+use bmo_chat::{ChatHealth, ChatMembers, ChatSendRequest, ChatSent, ProviderOwner, ProviderRoom};
 use reqwest::{Client, Method};
 use serde::Serialize;
 use serde::de::DeserializeOwned;

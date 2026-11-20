@@ -25,11 +25,53 @@ export function authorization(api: DiscordCall): string {
   return api.bot ? `Bot ${api.token}` : api.token;
 }
 
-// A call Discord answered with a failure, and the status it answered with.
+// A call Discord answered with a failure: the status it answered with, and the code of Discord's own its body
+// carried, or null where it carried none.
 export class DiscordAnswered extends Error {
+  readonly code: number | null;
+
   constructor(readonly status: number, what: string, body: string) {
     super(`Discord ${what} answered ${status}: ${body}`);
+    this.code = codeOf(body);
   }
+}
+
+// The code Discord's error body names, or null where the body is not Discord's error object.
+function codeOf(body: string): number | null {
+  try {
+    const parsed: unknown = JSON.parse(body);
+
+    return typeof parsed === "object" && parsed !== null && "code" in parsed && typeof parsed.code === "number"
+      ? parsed.code
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+// Discord's codes for a person a guild does not hold: no member of it, and no account at all.
+const unknownMember = 10007;
+const unknownUser = 10013;
+
+// A Discord user as a call answers one: the id, and the names Discord shows, each null where it gives none.
+export interface DiscordUser {
+  id: string;
+  username: string | null;
+  globalName: string | null;
+}
+
+function userOf(value: unknown): DiscordUser | null {
+  if (typeof value !== "object" || value === null || !("id" in value) || typeof value.id !== "string") {
+    return null;
+  }
+
+  const named = (key: string): string | null => {
+    const name: unknown = (value as Record<string, unknown>)[key];
+
+    return typeof name === "string" && name !== "" ? name : null;
+  };
+
+  return { id: value.id, username: named("username"), globalName: named("global_name") };
 }
 
 async function call(
@@ -169,21 +211,71 @@ export async function channelName(api: DiscordCall, channelId: string): Promise<
   return typeof channel?.name === "string" ? channel.name : null;
 }
 
+// A channel as Discord answers it: whether it is a DM (type 1), the people a DM is with, and the guild a guild's
+// channel belongs to, null for a channel of none.
+export interface DiscordChannel {
+  direct: boolean;
+  recipients: DiscordUser[];
+  guildId: string | null;
+}
+
+export async function channelOf(api: DiscordCall, channelId: string): Promise<DiscordChannel> {
+  const channel = await call(api, "GET", `/channels/${channelId}`);
+  const recipients: unknown[] = Array.isArray(channel?.recipients) ? channel.recipients : [];
+
+  return {
+    direct: channel?.type === 1,
+    recipients: recipients.map(userOf).filter((user) => user !== null),
+    guildId: typeof channel?.guild_id === "string" ? channel.guild_id : null,
+  };
+}
+
 // The person a channel is a one-to-one with: its one recipient, where the platform types the channel
 // a DM (type 1). Null for any other channel, a group DM (type 3) among them, which is a room of
 // several.
 export async function directRecipient(api: DiscordCall, channelId: string): Promise<string | null> {
-  const channel = await call(api, "GET", `/channels/${channelId}`);
-  const recipients: unknown[] = Array.isArray(channel?.recipients) ? channel.recipients : [];
-  const only = recipients.length === 1 ? recipients[0] : null;
+  const channel = await channelOf(api, channelId);
 
-  return channel?.type === 1 && typeof only === "object" && only !== null && "id" in only && typeof only.id === "string" ? only.id : null;
+  return channel.direct && channel.recipients.length === 1 ? channel.recipients[0]?.id ?? null : null;
+}
+
+// A person as a member of a guild: the user and their nickname there, null where they have none; null where
+// Discord says the guild holds no such member or no such account. Asking one member needs no privileged intent.
+export async function guildMember(
+  api: DiscordCall,
+  guildId: string,
+  userId: string,
+): Promise<{ user: DiscordUser; nick: string | null } | null> {
+  let member: Record<string, unknown> | null;
+
+  try {
+    member = await call(api, "GET", `/guilds/${guildId}/members/${userId}`);
+  } catch (error) {
+    if (error instanceof DiscordAnswered && (error.code === unknownMember || error.code === unknownUser)) {
+      return null;
+    }
+
+    throw error;
+  }
+
+  const user = userOf(member?.user);
+
+  if (user === null) {
+    return null;
+  }
+
+  return { user, nick: typeof member?.nick === "string" && member.nick !== "" ? member.nick : null };
+}
+
+// The user a token is, as Discord itself answers, or null where the answer names none.
+export async function currentUserNamed(api: DiscordCall): Promise<DiscordUser | null> {
+  return userOf(await call(api, "GET", "/users/@me"));
 }
 
 // The account a token is, as Discord itself answers: the current user's id, or null where the answer names
 // none.
 export async function currentUser(api: DiscordCall): Promise<string | null> {
-  return idOf(await call(api, "GET", "/users/@me"));
+  return (await currentUserNamed(api))?.id ?? null;
 }
 
 // The flags of the application a bot token is, as Discord itself answers; none where it names none.

@@ -1,6 +1,7 @@
 //! The provider's declaration (docs/discord.md, 「The declaration」): the bot account's mode stands on its token,
 //! the two on the owner's account on the gateway having confirmed that account, `own-account` stands
-//! unsupported whatever is set, and `can` is the nine sends the policy lists, with no `roomList`.
+//! unsupported whatever is set, and `can` is the nine sends and `memberList` the policy lists, with no
+//! `roomList`.
 
 use std::collections::BTreeSet;
 
@@ -125,7 +126,7 @@ fn the_bot_account_waits_on_its_token_when_it_is_unset() {
 }
 
 #[test]
-fn the_declaration_carries_four_modes_and_nine_capabilities_without_a_room_list() {
+fn the_declaration_carries_four_modes_and_ten_capabilities_without_a_room_list() {
   let provider = provider(true, NO_GATEWAY);
   let declaration = provider.declaration();
   let voices: Vec<ChatVoice> = declaration.modes.iter().map(|mode| mode.voice).collect();
@@ -139,6 +140,7 @@ fn the_declaration_carries_four_modes_and_nine_capabilities_without_a_room_list(
     ChatCapability::Pin,
     ChatCapability::Typing,
     ChatCapability::Edit,
+    ChatCapability::MemberList,
   ]);
 
   assert_eq!(

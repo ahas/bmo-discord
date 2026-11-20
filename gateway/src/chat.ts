@@ -152,6 +152,14 @@ export interface ProviderRoom {
   modes?: ChatVoice[] | null;
 }
 
+// One person in a room, as a provider lists a room's members: the person's number, null where the provider has
+// given them none, what the room calls them, and their status line.
+export interface ChatMember {
+  person: number | null;
+  name: string;
+  statusMessage: string | null;
+}
+
 export interface ProviderOwner {
   roomId: number | null;
 }

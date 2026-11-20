@@ -259,6 +259,12 @@ export async function handleDiscordMessage(road: DiscordRoad, message: DiscordMe
   const senderId = fromOwner
     ? await ownerNumber(archive, discord)
     : await archive.providerNumbers().providerSenderId(discordKey, message.authorId);
+
+  // Whoever writes in a room is one its members are asked after (docs/discord.md, 「The members of a room」).
+  if (message.authorId !== "" && senderId !== null) {
+    await archive.chats().markWriter(discordKey, chatId, senderId);
+  }
+
   const identity = await identityIn(archive, discord);
   const origin = message.kind === "edited" ? "edit" : "live";
   let kept: KeptMessage = {

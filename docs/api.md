@@ -21,7 +21,8 @@ here exactly as they state them.
   calls; both processes listen on `127.0.0.1` only and every route takes `BMO_DISCORD_ROUTE_TOKEN` as its
   bearer, answering 401 without it.
 
-The provider declares `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing` and `edit`;
+The provider declares `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing`, `edit` and
+`memberList`;
 `peopleTyping` while the bot account's socket runs, and `presence` while it runs with the presence intent
 granted (`docs/discord.md`, 「Typing and presence」).
 It declares no `fetchMedia`, no `avatars`, no `history`, no `roomList` and no album, audio, voice or delete
@@ -96,6 +97,7 @@ intent granted. The gateway answers from what it holds and makes no call on Disc
 | Route | Query | Answers |
 |---|---|---|
 | `GET /rooms/{roomId}` | | one room: `id`, `owns`, `identity`, `kind` (`owner` or `group`), `privateTo`, `title`. 404 `not-found` where the number is not this provider's |
+| `GET /rooms/{roomId}/members` | | `members`, the room's members as bmo-chat's `docs/contract.md` states them, each `person` (number or null), `name` and `statusMessage` (always null). 404 `not-found` with the reason where the members are not held |
 
 `identity` is the sender number the account's own words carry in the room, and `privateTo` is the one person of
 a one-to-one, null for a room of several. `modes` are the voices whose account answers the room: `bot-account`
@@ -103,6 +105,12 @@ in every room, and `human-reader` and `human-avatar` besides where the owner's a
 (`docs/discord.md`, 「The owner's account」). The service answers the protocol's room with those of them its
 declaration has active, and with every active voice where the gateway names none. With no bot token set the
 service owns no room and answers 404 `not-found` without asking the gateway.
+
+A room's members are what the bot account can tell without a privileged intent: a DM's recipient and the bot
+account, and a guild channel's bot account and every person heard writing in it whom Discord confirms is still a
+member of the guild (`docs/discord.md`, 「The members of a room」). The service answers the protocol's
+`GET /rooms/{roomId}/members` with the gateway's list as it stands, and with the gateway's `not-found` reason as
+its own; with no bot token set it holds no members and does not ask the gateway.
 
 ## The owner
 

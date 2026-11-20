@@ -1,5 +1,6 @@
 //! The Discord chat provider as bmo-chat serves it (docs/discord.md, 「The declaration」): the declaration and
-//! the dialect stand here, and every room question and every send is the gateway's to answer.
+//! the dialect stand here, and every room question, a room's members and every send are the gateway's to
+//! answer.
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, RwLock};
@@ -7,10 +8,10 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bmo_chat::{
-  ChatCapability, ChatDialect, ChatFailure, ChatHealth, ChatModeStanding, ChatNumberRange,
-  ChatNumberRanges, ChatNumberSpace, ChatNumbering, ChatProvider, ChatReach, ChatReadMode, ChatReceiver,
-  ChatRefusal, ChatSend, ChatSendRequest, ChatSendResult, ChatVoice, ErrorCode, FileBody, ProviderRoom,
-  WireError,
+  ChatCapability, ChatDialect, ChatFailure, ChatHealth, ChatMembersResult, ChatModeStanding,
+  ChatNumberRange, ChatNumberRanges, ChatNumberSpace, ChatNumbering, ChatProvider, ChatReach, ChatReadMode,
+  ChatReceiver, ChatRefusal, ChatSend, ChatSendRequest, ChatSendResult, ChatVoice, ErrorCode, FileBody,
+  ProviderRoom, WireError,
 };
 use tokio::task::JoinHandle;
 
@@ -476,6 +477,24 @@ impl ChatProvider for DiscordProvider {
         }))
       }
       Err(GatewayFailure::Answered { status: 404, .. }) => Ok(None),
+      Err(failure) => Err(failure.into()),
+    }
+  }
+
+  /// A room's members as the gateway lists them (docs/discord.md, 「The members of a room」), and none held, for
+  /// the gateway's reason, where it answers that it holds none. An unconfigured provider holds none, and the
+  /// gateway is not asked.
+  async fn members(&self, room_id: i64) -> Result<ChatMembersResult, ChatFailure> {
+    if let Some(missing) = self.configured() {
+      return Ok(ChatMembersResult::Unheld { reason: missing });
+    }
+
+    match self.gateway.members(room_id).await {
+      Ok(listed) => Ok(ChatMembersResult::Listed(listed.members)),
+      Err(GatewayFailure::Answered { status: 404, body }) => Ok(ChatMembersResult::Unheld {
+        reason: serde_json::from_slice::<WireError>(&body)
+          .map_or_else(|_| format!("nothing is known of room {room_id}"), |answer| answer.error),
+      }),
       Err(failure) => Err(failure.into()),
     }
   }

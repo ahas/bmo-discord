@@ -2,9 +2,8 @@
 // number holds exactly, so every channel, person and message is given a number here and the snowflake stays a
 // string. The store also keeps which messages have been handed over, so a message two sockets read goes once,
 // the voice each room is answered by, the one person of each DM channel, the rooms the owner has been heard in,
-// the messages sent through the owner's account, and the guild of each guild channel. It is this provider's
-// alone, so
-// the provider key each call names is always this provider's.
+// the messages sent through the owner's account, the guild of each guild channel, and every person heard writing
+// in each room. It is this provider's alone, so the provider key each call names is always this provider's.
 
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
@@ -76,6 +75,11 @@ const schema = `
   CREATE INDEX IF NOT EXISTS guild_rooms_by_guild ON guild_rooms (guild_id);
   CREATE TABLE IF NOT EXISTS owner_rooms (
     chat_id INTEGER PRIMARY KEY
+  );
+  CREATE TABLE IF NOT EXISTS room_writers (
+    chat_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    PRIMARY KEY (chat_id, sender_id)
   );
   CREATE TABLE IF NOT EXISTS owner_sends (
     chat_id INTEGER NOT NULL,
@@ -347,6 +351,19 @@ export class Store {
       markOwnerHeard: async (_provider: string, chatId: number): Promise<void> => {
         db.query("INSERT INTO owner_rooms (chat_id) VALUES ($chatId) ON CONFLICT DO NOTHING").run({ chatId });
       },
+
+      // Writes down that a person was heard writing in a room.
+      markWriter: async (_provider: string, chatId: number, senderId: number): Promise<void> => {
+        db.query("INSERT INTO room_writers (chat_id, sender_id) VALUES ($chatId, $senderId) ON CONFLICT DO NOTHING")
+          .run({ chatId, senderId });
+      },
+
+      // The Discord accounts of everyone heard writing in a room, in the order they were first heard.
+      roomWriters: async (_provider: string, chatId: number): Promise<string[]> =>
+        (db.query(
+          `SELECT people.user_id FROM room_writers JOIN people ON people.sender_id = room_writers.sender_id
+            WHERE room_writers.chat_id = $chatId ORDER BY room_writers.rowid`,
+        ).all({ chatId }) as { user_id: string }[]).map((row) => row.user_id),
 
       // Whether the owner's account has been heard in a room.
       ownerHeard: async (_provider: string, chatId: number): Promise<boolean> =>

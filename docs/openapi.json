@@ -250,6 +250,61 @@
         }
       }
     },
+    "/rooms/{roomId}/members": {
+      "get": {
+        "operationId": "members",
+        "summary": "A room's members as the gateway lists them",
+        "x-call": {
+          "language": "rust",
+          "name": "members",
+          "answer": "ChatMembers",
+          "key": "roomId"
+        },
+        "parameters": [
+          {
+            "name": "roomId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The room's members, whole: a DM's recipient and the bot account, or a guild channel's bot account and every person heard writing in it whom Discord confirms is still in the guild.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/ChatMembers"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The gateway holds no members of the room, with the reason.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/WireError"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The error shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../../base/chat/docs/openapi/provider.json#/components/schemas/WireError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/owner": {
       "get": {
         "operationId": "owner",

@@ -38,7 +38,7 @@ pub struct DialectPolicy {
 /// What `policy/discord.toml` holds.
 #[derive(Deserialize)]
 pub struct Policy {
-  /// What the provider sends, as its declaration's `can`.
+  /// What the provider sends, and the members of a room it lists, as its declaration's `can`.
   pub can: BTreeSet<ChatCapability>,
   /// Discord's terms on automating a user account: why the `own-account` mode is unsupported.
   pub user_accounts: String,

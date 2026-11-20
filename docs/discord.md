@@ -33,7 +33,7 @@ is set up and what it can do.
 | `key` | `discord` |
 | `label` | the platform's name in this repository's language pack, `lang/ko.toml` |
 | `configured` | null where `BMO_DISCORD_TOKEN` is set, else the sentence naming it |
-| `can` | `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing`, `edit`, as `policy/discord.toml` lists them; `peopleTyping` while the bot account's socket runs, and `presence` while it runs with the presence intent granted (「Typing and presence」) |
+| `can` | `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing`, `edit` and `memberList`, as `policy/discord.toml` lists them; `peopleTyping` while the bot account's socket runs, and `presence` while it runs with the presence intent granted (「Typing and presence」) |
 | `dialect` | `discord-markdown` (「The dialect」) |
 | `shows` | null |
 | `numbering` | `assigned` for rooms, people and messages, with the rooms' and people's ranges declared (「Numbering」) |
@@ -68,6 +68,8 @@ confirmation answered.
 - **The rooms of the account are not listed.** The provider declares no `roomList`: the bot account cannot ask
   the platform for the one-to-one channels it is in, and the channels a guild answers with include those the
   bot cannot read, so no list the platform gives is the rooms the account is in.
+- **The members of a room are listed** (`memberList`), as the bot account can tell them without a privileged
+  intent (「The members of a room」).
 
 ## The socket
 
@@ -180,6 +182,31 @@ token and nothing else of it: no socket is opened on it, and every room is read 
   pairs each emoji with the application's sticker id, and a sticker asked for by an emoji the pairing does not
   hold is refused, naming the emoji.
 
+## The members of a room
+
+A room's members are the people the bot account can tell are in it, each once, under the number this provider
+gives them, the sender number their messages carry. The provider never asks for a guild's whole member list:
+that call needs the privileged server members intent, which this provider does not ask for.
+
+- **A DM is its recipient and the bot account.** The gateway asks Discord for the channel
+  (`GET /channels/{channel}`) and lists the recipient it names, then the bot account as the current-user call
+  (`GET /users/@me`) names it.
+- **A guild channel is everyone the provider has seen write in it, each confirmed.** The bot account comes
+  first, then every person heard writing in the channel in the order the provider first heard them, each asked
+  of Discord one at a time (`GET /guilds/{guild}/members/{user}`, which needs no privileged intent). A person
+  Discord answers is not a member of the guild, or not an account at all, is left out, so one who left or was
+  removed drops from the list. Discord's answer says who is in the guild, not who can still read the channel,
+  so a member whose permissions no longer let them read it stands until they leave the guild.
+- **The store keeps each room's writers** as the socket delivers their messages, the agent's and the owner's
+  among them; a deletion adds nobody.
+- **A person is named as the room calls them:** their nickname in the guild, else their display name, else
+  their username, else the unknown-sender name in `lang/ko.toml`. No status line is given.
+- **A person stands with no number** where this provider has never numbered them: it gives no number only to
+  list somebody.
+- **A room whose members are not held is answered `not-found`** with the reason: a number that is not one of
+  this provider's rooms, a channel that is neither a DM nor a guild's, and a call Discord answers with any other
+  failure, its own words included, so a refused or rate-limited call never shortens the list in silence.
+
 ## The dialect
 
 `discord-markdown`, run by the service:
@@ -251,8 +278,8 @@ flowchart TD
 - **The gateway keeps the numbers** in its store, `discord.sqlite` under `BMO_DISCORD_DATA`: a number for each
   channel, each person and each message it has seen or sent, the messages it has handed over, the voice each
   room is answered by, the one person of each DM channel, the rooms the owner has been heard in, and the
-  messages it sent through the owner's account with the voice each went out in, and the guild of each guild
-  channel.
+  messages it sent through the owner's account with the voice each went out in, the guild of each guild
+  channel, and every person heard writing in each room.
 - **The ranges:** room numbers count down from −8,000,000,000,000 and person numbers count up from
   8,000,000,000,000, each taking one past the furthest the counter has ever reached, so a number once given is
   never given again. A message number counts up from one within its room, past the highest the room was ever
@@ -303,7 +330,7 @@ Every refusal is a bmo-chat refusal code with its English sentence, answered wit
 
 With no token set the provider is not configured, yet its health is ready, so the service answers what the
 base would otherwise turn away as not ready itself, without asking the gateway: a send is refused `not-ready`,
-a room is none this provider owns, and the owner has no room.
+a room is none this provider owns, a room's members are not held, and the owner has no room.
 
 ## Tests
 
@@ -314,7 +341,9 @@ asking the gateway; ready once a stand-in gateway answers ready with the token s
 declaration test holds the modes and the capabilities the service declares: `bot-account` active when its
 token is set, `human-reader` and `human-avatar` active once the gateway has confirmed the owner's account and
 inactive saying what they wait on otherwise, `own-account` unsupported with the terms' words whatever is set,
-and the nine capabilities, read from a stand-in gateway's answer about the owner's account. The hearing test
+and the ten capabilities, read from a stand-in gateway's answer about the owner's account. The members test
+holds a room's members as a stand-in gateway lists them, its `not-found` passed on with the gateway's reason,
+and an unconfigured provider holding none without asking the gateway. The hearing test
 holds `peopleTyping` and `presence` declared as a stand-in gateway answers it hears each, and the service
 telling a stand-in receiving side a typing mark only of a room it listens to and a presence change only of the
 people who stand in one, a `whole` change whole. The room-modes test holds a room's voices narrowed to the
@@ -331,5 +360,9 @@ owner's typing start passed over within a mark's life of this provider typing th
 send for another account refused with nothing typed, the identify asking for the typing intents always and for
 presence only where it is granted, a fresh session's guilds told as one whole list with idle as `away`, do not
 disturb as `online` and a listed member with no presence as `offline`, and each person told beside the rooms
-they stand in. The rest of the behaviour tests are deferred: no Discord test account is connected, so nothing here, the owner's account least of all, has been
+they stand in. The gateway's members test, against a stand-in Discord, holds a DM listed as its recipient and
+the bot account, a guild channel as the bot account and every writer the socket delivered in it that Discord
+confirms, one Discord says is no longer a member left out and one never heard in the channel never asked, each
+named by nickname, display name or username, and a failure of Discord's answered as members not held, with its
+words. The rest of the behaviour tests are deferred: no Discord test account is connected, so nothing here, the owner's account least of all, has been
 tried against a live Discord server.
