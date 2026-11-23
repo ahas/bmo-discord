@@ -1,0 +1,87 @@
+# What installing the Discord provider on a fresh machine needs, read by the testbed's install verb
+# (bmo-testbed's docs/install.md, 「The install declaration」).
+
+install = 1
+
+# The gateway first, as every deployment restarts it before the service.
+restart = "systemctl --user restart bmo-discord-gateway.service bmo-discord.service"
+
+[[needs]]
+check = 'test -x "$HOME/.bun/bin/bun"'
+what = "Bun at ~/.bun/bin/bun, which runs the gateway and installs its packages: `curl -fsSL https://bun.sh/install | bash`."
+
+[[needs]]
+program = "curl"
+what = "curl, which the verification asks the service's health with: the `curl` package."
+
+[[needs]]
+program = "jq"
+what = "jq, which the verification reads the service's health with: the `jq` package."
+
+[[port]]
+name = "discord.server"
+number = 3232
+
+[[port]]
+name = "discord.gateway"
+number = 3233
+
+# The bearer every route of the service and of the gateway takes, the receiver's road among its callers.
+[[token]]
+name = "discord.route"
+file = "env/discord-route.token"
+
+[[input]]
+name = "discord.bot"
+what = "The Discord application's bot token, from the Discord Developer Portal: the application's Bot page, Reset Token."
+file = "env/discord-bot.token"
+secret = true
+
+[[input]]
+name = "discord.owner-id"
+what = "The owner's Discord user id: with Developer Mode on in Discord's Advanced settings, right-click the owner's own name and choose Copy User ID."
+file = "install/inputs/discord.owner-id"
+
+[[input]]
+name = "discord.owner-channel"
+what = "The id of the direct-message channel between the owner and the bot: with Developer Mode on, open the owner's DM with the bot, right-click it in the list and choose Copy Channel ID."
+file = "install/inputs/discord.owner-channel"
+
+# The environment both processes read (docs/boundary-api.md, 「Configuration」), which each release links. The
+# owner's own account (BMO_DISCORD_OWNER_TOKEN) is left out: the bot account's mode stands on the bot token alone.
+[[settings]]
+file = "env/discord.env"
+text = '''
+BMO_DISCORD_TOKEN={{input.discord.bot}}
+BMO_DISCORD_OWNER_ID={{input.discord.owner-id}}
+BMO_DISCORD_OWNER_CHANNEL={{input.discord.owner-channel}}
+BMO_DISCORD_PORT={{port.discord.server}}
+BMO_DISCORD_GATEWAY_PORT={{port.discord.gateway}}
+BMO_DISCORD_ROUTE_TOKEN={{token.discord.route}}
+BMO_DISCORD_RECEIVER_URL=http://127.0.0.1:{{port.receiver.server}}/chat
+BMO_DISCORD_RECEIVER_TOKEN={{token.receiver.service}}
+BMO_DISCORD_DATA={{data_root}}/discord
+BMO_DISCORD_SENDER_NAME={{value.agent.label}}
+BMO_DISCORD_CLIENT_NAME={{value.agent.label}}
+'''
+
+# The receiver's road to this provider: one entry of its configuration's `[roads]` table, which stands last in
+# that file, so the line added at its end falls into it.
+[[line]]
+file = "env/receiver.toml"
+key = "discord"
+value = '{ base = "http://127.0.0.1:{{port.discord.server}}", token = "{{token.discord.route}}" }'
+
+[[verify]]
+id = "bot-health"
+what = "the provider is ready and Discord accepted the bot token"
+run = '''
+set -eu
+env="${BMO_DATA_DIR:-$HOME/.local/share/bmo/data}/env/discord.env"
+header="$(mktemp)"
+trap 'rm -f "$header"' EXIT
+sed -n 's/^BMO_DISCORD_ROUTE_TOKEN=/Authorization: Bearer /p' "$env" > "$header"
+port="$(sed -n 's/^BMO_DISCORD_PORT=//p' "$env")"
+curl -sf -H @"$header" "http://127.0.0.1:$port/health" |
+  jq -e '.ready == true and ((.reason // "") | contains("BMO_DISCORD_TOKEN") | not)' > /dev/null
+'''

@@ -55,7 +55,7 @@ Discord 역할을 합니다. 읽기 모드와 할 수 있는 일, 방에서 쓰�
 루트에는 서비스의 단일 패키지에 대한 Cargo 매니페스트, `VERSION`에 담긴 버전, `testbed.toml`(이 저장소를 어떻게
 테스트·검사·빌드·배포하는지에 대한 testbed 선언), testbed 검사가 읽는 한국어 대장, `settings.example.env`(두
 프로세스가 읽는 모든 설정과 중립적인 예시 값), `PERSONAL-DATA.md`(여기에 절대 두어서는 안 되는 개인 정보),
-`rustfmt.toml`, `CLAUDE.md`가 있습니다.
+`install.toml`(새 머신에 설치할 때 필요한 것으로, `bmo install`이 읽습니다), `rustfmt.toml`, `CLAUDE.md`가 있습니다.
 
 ## 문서
 

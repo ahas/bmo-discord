@@ -48,7 +48,7 @@ receiver。所有者本人的账号在 gateway 确认之后,以 `human-reader` �
 
 根目录下有服务唯一一个包的 Cargo 清单、记录在 `VERSION` 中的版本号、`testbed.toml`(testbed 关于本仓库如何测试、
 检查、构建和部署的声明)、testbed 检查所读取的韩语台账、`settings.example.env`(两个进程读取的全部设置及中性的示例
-值)、`PERSONAL-DATA.md`(绝不能出现在这里的个人数据)、`rustfmt.toml` 和 `CLAUDE.md`。
+值)、`PERSONAL-DATA.md`(绝不能出现在这里的个人数据)、`install.toml`(在新机器上安装所需内容的声明，由 `bmo install` 读取)、`rustfmt.toml` 和 `CLAUDE.md`。
 
 ## 文档
 

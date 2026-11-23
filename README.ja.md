@@ -58,7 +58,7 @@ gateway が確認したあとで `human-reader` と `human-avatar` の声で送�
 ルートには、サービス唯一のパッケージの Cargo マニフェスト、`VERSION` に記されたバージョン、`testbed.toml`
 (このリポジトリをどうテスト・チェック・ビルド・デプロイするかの testbed 向け宣言)、testbed のチェックが読む韓国語
 台帳、`settings.example.env`(両プロセスが読むすべての設定と中立的な例の値)、`PERSONAL-DATA.md`(ここに決して
-置いてはならない個人データ)、`rustfmt.toml`、`CLAUDE.md` があります。
+置いてはならない個人データ)、`install.toml`(新しいマシンへのインストールに必要なものの宣言で、`bmo install` が読みます)、`rustfmt.toml`、`CLAUDE.md` があります。
 
 ## ドキュメント
 

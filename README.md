@@ -56,7 +56,8 @@ account made for the agent is run, since Discord's terms forbid automating one.
 At the root stand the Cargo manifest of the service's one package, the version in `VERSION`, `testbed.toml`
 (the testbed's declaration of how this repository is tested, checked, built and deployed), the Korean ledger
 the testbed's check reads, `settings.example.env` (every setting both processes read, with neutral example
-values), `PERSONAL-DATA.md` (what personal data may never stand here), `rustfmt.toml` and `CLAUDE.md`.
+values), `PERSONAL-DATA.md` (what personal data may never stand here), `install.toml` (what installing it on a fresh machine needs, which `bmo install` reads),
+`rustfmt.toml` and `CLAUDE.md`.
 
 ## Documents
 
