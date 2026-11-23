@@ -22,6 +22,25 @@ fn port(name: &str, otherwise: u16) -> u16 {
   given(name).map_or(otherwise, |value| value.parse().unwrap_or(otherwise))
 }
 
+/// The language pack a language tag names, matched by its language (`ja-JP` is `ja`, any Chinese tag is
+/// `zh-CN`), and `ko` where it names none the repository ships. The gateway reads tags the same way.
+pub fn pack_language(tag: &str) -> &'static str {
+  let named = tag.trim().to_ascii_lowercase();
+
+  match named.split(['-', '_']).next().unwrap_or_default() {
+    "en" => "en",
+    "ja" => "ja",
+    "zh" => "zh-CN",
+    _ => "ko",
+  }
+}
+
+/// The language pack the provider draws its words from: the one `BMO_DISCORD_LANGUAGE` names, `ko` where it is
+/// unset.
+pub fn language() -> &'static str {
+  pack_language(&given("BMO_DISCORD_LANGUAGE").unwrap_or_default())
+}
+
 /// What the service stands on.
 pub struct Config {
   /// Whether the application's bot token is set, which the `bot-account` mode stands on.

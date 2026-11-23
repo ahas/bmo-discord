@@ -30,8 +30,9 @@ loopback, holds the bot account's socket, makes every REST call and keeps the pr
 - **The provider declares what it is.** Its modes, capabilities and dialect are its own declaration, in
   `policy/discord.toml` and the service; nothing here names the receiver's internals or another provider, and
   nothing branches on an agent's name.
-- **Words a person reads live in this repository's language pack**, `lang/ko.toml`: the platform's label and
-  the marks a message is handed over with. Everything else is English: code, comments, strings, policy,
+- **Words a person reads live in this repository's language packs** under `lang/`, one per language (`ko`, `en`,
+  `ja`, `zh-CN`), each holding the same words: the platform's label and the marks a message is handed over with.
+  A word added to one pack is added to every pack. Everything else is English: code, comments, strings, policy,
   documents and commit messages. A refusal is a bmo-chat refusal code with an English sentence. No code file
   holds Hangul.
 - **No agent names, owner names, host names, home paths or private network addresses** in code, documents or

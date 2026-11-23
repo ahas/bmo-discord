@@ -55,7 +55,7 @@ What the provider hands over:
 - **The agent's own words come back down the socket** like everybody else's. They are handed over under the
   agent's number in that room, and the receiving side keeps them and wakes nobody for them.
 - **A file is a mark.** A picture is handed over as the picture mark and any other file as the file mark
-  naming it (`lang/ko.toml`); no bytes cross, and the provider declares no `fetchMedia`.
+  naming it, in the deployment's language pack (`docs/discord.md`, 「Language」); no bytes cross, and the provider declares no `fetchMedia`.
 - **Room facts travel with the hand-over.** `room.kind`, `room.identity` and `room.privateTo` carry what the
   provider already knows, so the receiving side need not ask for it.
 - **The context** carries the author's handle as `senderUsername`, the words the author typed as
@@ -148,6 +148,7 @@ This provider's own:
 | `BMO_DISCORD_ROUTE_TOKEN` | both | the bearer every route of the service and of the gateway takes; required |
 | `BMO_DISCORD_RECEIVER_URL` | service | the receiving side's base address; required |
 | `BMO_DISCORD_RECEIVER_TOKEN` | service | the token the receiving side's routes take; required |
+| `BMO_DISCORD_LANGUAGE` | both | the language the provider's words are drawn in, as a language tag: `ko`, `en`, `ja` or `zh-CN`, matched by its language (`docs/discord.md`, 「Language」); `ko` where unset |
 | `BMO_DISCORD_DATA` | gateway | the provider's own data folder, inside no checkout; it holds the number store. Required |
 | `BMO_DISCORD_SENDER_NAME` | gateway | the name the agent's own words are handed over under |
 | `BMO_DISCORD_CLIENT_NAME` | gateway | the client name the bot account's socket identifies itself with to Discord |

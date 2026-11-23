@@ -1,10 +1,13 @@
 // What the gateway reads of its own environment beyond the platform's credentials (`config.ts`), the
-// provider's fixed values in `policy/discord.toml`, and the words a person reads in `lang/ko.toml`
-// (docs/boundary-api.md, 「Configuration」). The agent's names are configuration the deployment writes from the
+// provider's fixed values in `policy/discord.toml`, and the words a person reads in the language pack under `lang/`
+// that `BMO_DISCORD_LANGUAGE` names (docs/boundary-api.md, 「Configuration」). The agent's names are configuration the deployment writes from the
 // agent's registration; nothing here knows whose they are.
 
 import policyFile from "../../policy/discord.toml";
-import wordsFile from "../../lang/ko.toml";
+import englishWords from "../../lang/en.toml";
+import japaneseWords from "../../lang/ja.toml";
+import koreanWords from "../../lang/ko.toml";
+import chineseWords from "../../lang/zh-CN.toml";
 
 export interface NumberRange {
   first: number;
@@ -30,8 +33,32 @@ export interface DiscordWords {
   unnamed_file: string;
 }
 
+// Every language pack the repository ships, by its language.
+export const languagePacks: Record<string, DiscordWords> = {
+  ko: koreanWords as DiscordWords,
+  en: englishWords as DiscordWords,
+  ja: japaneseWords as DiscordWords,
+  "zh-CN": chineseWords as DiscordWords,
+};
+
+// The pack a language tag names, matched by its language (`ja-JP` is `ja`, any Chinese tag is `zh-CN`), and `ko`
+// where it names none or none the repository ships. The service reads the same variable the same way.
+export function packLanguage(tag: string | undefined): string {
+  const primary = (tag ?? "").trim().toLowerCase().split(/[-_]/)[0];
+
+  switch (primary) {
+    case "en":
+    case "ja":
+      return primary;
+    case "zh":
+      return "zh-CN";
+    default:
+      return "ko";
+  }
+}
+
 export const discordPolicy = policyFile as DiscordPolicy;
-export const discordWords = wordsFile as DiscordWords;
+export const discordWords = languagePacks[packLanguage(process.env.BMO_DISCORD_LANGUAGE)] as DiscordWords;
 
 // A template of the pack with its {marks} filled; a mark it is not given stays as it is written.
 export function fillMarks(template: string, marks: Record<string, string>): string {

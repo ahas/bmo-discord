@@ -31,7 +31,7 @@ is set up and what it can do.
 | Member | Value |
 |---|---|
 | `key` | `discord` |
-| `label` | the platform's name in this repository's language pack, `lang/ko.toml` |
+| `label` | the platform's name in the deployment's language pack (「Language」) |
 | `configured` | null where `BMO_DISCORD_TOKEN` is set, else the sentence naming it |
 | `can` | `text`, `replyTo`, `photo`, `document`, `sticker`, `reaction`, `pin`, `typing`, `edit` and `memberList`, as `policy/discord.toml` lists them; `peopleTyping` while the bot account's socket runs, and `presence` while it runs with the presence intent granted (「Typing and presence」) |
 | `dialect` | `discord-markdown` (「The dialect」) |
@@ -200,7 +200,7 @@ that call needs the privileged server members intent, which this provider does n
 - **The store keeps each room's writers** as the socket delivers their messages, the agent's and the owner's
   among them; a deletion adds nobody.
 - **A person is named as the room calls them:** their nickname in the guild, else their display name, else
-  their username, else the unknown-sender name in `lang/ko.toml`. No status line is given.
+  their username, else the unknown-sender name in the language pack. No status line is given.
 - **A person stands with no number** where this provider has never numbered them: it gives no number only to
   list somebody.
 - **A room whose members are not held is answered `not-found`** with the reason: a number that is not one of
@@ -298,9 +298,9 @@ flowchart TD
 ## What a message carries
 
 - **A file is a mark in the record.** A picture is handed over as the picture mark, and any other file as the
-  file mark naming it, both from `lang/ko.toml`. The provider declares no `fetchMedia`: a file somebody posted
+  file mark naming it, both from the language pack. The provider declares no `fetchMedia`: a file somebody posted
   cannot be asked for back.
-- **An author Discord gives no name for** is handed over under the unknown-sender name in `lang/ko.toml`,
+- **An author Discord gives no name for** is handed over under the unknown-sender name in the language pack,
   and an attachment Discord gives no file name for is named by the unnamed-file word there.
 - **A message's origin says what happened.** A message a room said is handed over `live`, and one already
   handed over whose words or sender changed is handed over `edit`, so the receiving side replaces it with the
@@ -308,6 +308,19 @@ flowchart TD
   nobody.
 - **Times are epoch milliseconds**, as the protocol states them, and rooms, people and messages cross as the
   provider's signed 64-bit numbers.
+
+## Language
+
+The words a person reads that this provider draws stand in its language packs under `lang/`, one file per
+language: Korean (`ko`), English (`en`), Japanese (`ja`) and Simplified Chinese (`zh-CN`). Each pack holds the
+same words with the same marks: the platform's label, the picture mark, the file mark naming the file, the
+unknown-sender name and the unnamed-file word. The label is the platform's own name, Discord, in every pack
+but the Korean one.
+
+A deployment speaks one language, the one `BMO_DISCORD_LANGUAGE` names (`docs/boundary-api.md`,
+「Configuration」), and both processes read it the same way: a tag names its pack by its language, so `ja-JP`
+is `ja` and any Chinese tag is `zh-CN`, and a deployment that names none, or one no pack is shipped for, speaks
+Korean. Every pack is built into the service and the gateway, so the setting needs no file in place.
 
 ## Refusals
 
@@ -364,5 +377,6 @@ they stand in. The gateway's members test, against a stand-in Discord, holds a D
 the bot account, a guild channel as the bot account and every writer the socket delivered in it that Discord
 confirms, one Discord says is no longer a member left out and one never heard in the channel never asked, each
 named by nickname, display name or username, and a failure of Discord's answered as members not held, with its
-words. The rest of the behaviour tests are deferred: no Discord test account is connected, so nothing here, the owner's account least of all, has been
+words. The language test, in both processes, holds every pack holding the same words with the same marks, and
+a language tag naming its pack by its language. The rest of the behaviour tests are deferred: no Discord test account is connected, so nothing here, the owner's account least of all, has been
 tried against a live Discord server.
