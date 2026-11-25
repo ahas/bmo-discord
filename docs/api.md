@@ -1,6 +1,6 @@
 # The Discord provider's fixed API
 
-**Fixed at 0.1.0-rev.1.**
+**Fixed at the release the commit is tagged with.**
 
 This document is `bmo-discord`'s fixed API, in the common wire format, grouped by the resource each route
 acts on. `docs/openapi.json` is the same contract in machine form, and the two clients beside the code —

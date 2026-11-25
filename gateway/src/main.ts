@@ -11,6 +11,10 @@ import { Service } from "./seam";
 import { dataFolder, gatewayPort, routeToken } from "./settings";
 import { Store } from "./store";
 
+// The version the gateway's health answers: the set's version the testbed hands the process as
+// `BMO_VERSION`, else the package's placeholder (bmo-chat's docs/conventions.md, 「Versions」).
+const version = process.env.BMO_VERSION || packageFile.version;
+
 import type { ChatSendRequest } from "./chat";
 import type { KeptMessage } from "./store";
 
@@ -53,13 +57,13 @@ async function answer(request: Request): Promise<Response> {
   const path = new URL(request.url).pathname;
 
   if (request.method === "GET" && path === "/health") {
-    return Response.json({ ...discordProvider.health(), version: packageFile.version });
+    return Response.json({ ...discordProvider.health(), version });
   }
 
   if (request.method === "GET" && path === "/owner-account") {
     const owner = discordProvider.ownerAccount();
 
-    return Response.json({ ready: owner.confirmed, reason: owner.reason, version: packageFile.version });
+    return Response.json({ ready: owner.confirmed, reason: owner.reason, version });
   }
 
   if (request.method === "GET" && path === "/hearing") {

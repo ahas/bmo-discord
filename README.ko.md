@@ -52,7 +52,7 @@ Discord 역할을 합니다. 읽기 모드와 할 수 있는 일, 방에서 쓰�
 | `tests/` | 서비스의 단일 테스트 하니스 `tests/main.rs`와 그 모듈: 대역 gateway(`stand_in.rs`)를 상대로 하는 선언, 방 모드, 듣기, health, 문서 전송, 멤버 테스트 |
 | `docs/` | 프로바이더가 하는 일에 대한 정식 기술 |
 
-루트에는 서비스의 단일 패키지에 대한 Cargo 매니페스트, `VERSION`에 담긴 버전, `testbed.toml`(이 저장소를 어떻게
+루트에는 서비스의 단일 패키지에 대한 Cargo 매니페스트, `testbed.toml`(이 저장소를 어떻게
 테스트·검사·빌드·배포하는지에 대한 testbed 선언), testbed 검사가 읽는 한국어 대장, `settings.example.env`(두
 프로세스가 읽는 모든 설정과 중립적인 예시 값), `PERSONAL-DATA.md`(여기에 절대 두어서는 안 되는 개인 정보),
 `install.toml`(새 머신에 설치할 때 필요한 것으로, `bmo install`이 읽습니다), `rustfmt.toml`, `CLAUDE.md`가 있습니다.
@@ -69,8 +69,8 @@ Discord 역할을 합니다. 읽기 모드와 할 수 있는 일, 방에서 쓰�
 
 ## 버전
 
-- **저장소 전체에 하나의 버전을 씁니다.** `VERSION`이 그 버전을 담고, 패키지 버전이 이와 같으며, gateway의
-  `package.json`도 같은 버전을 가집니다.
+- **버전은 세트 전체의 것입니다.** 빌드할 때 git 태그에서 읽으며, 패키지 버전과 gateway의 `package.json` 버전은
+  움직이지 않는 자리표시 값입니다.
 - **버전은 소유자가 선언한 릴리스에서만 바뀝니다.** bmo-chat의 `docs/conventions.md` 「Versions」에 적힌 대로입니다.
   커밋, 배포, 수정, 계약 변경으로는 바뀌지 않으며, 배포는 커밋으로 구별합니다.
 

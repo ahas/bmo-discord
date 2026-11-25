@@ -336,7 +336,7 @@ impl ChatProvider for DiscordProvider {
   }
 
   fn version(&self) -> &str {
-    env!("CARGO_PKG_VERSION")
+    crate::VERSION
   }
 
   fn configured(&self) -> Option<String> {

@@ -16,7 +16,7 @@ use bmo_discord::seam::Gateway;
 #[derive(Parser)]
 #[command(
   name = "bmo-discord",
-  version,
+  version = bmo_discord::VERSION,
   about = "The Discord chat provider: the declaration, the dialect and the protocol's routes, with the gateway behind them."
 )]
 struct Cli {

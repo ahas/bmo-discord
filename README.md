@@ -53,7 +53,7 @@ account made for the agent is run, since Discord's terms forbid automating one.
 | `tests/` | the service's one test harness, `tests/main.rs`, and its modules: the declaration, room-modes, hearing, health, document-send and members tests over a stand-in gateway (`stand_in.rs`) |
 | `docs/` | the canonical statements of what the provider does |
 
-At the root stand the Cargo manifest of the service's one package, the version in `VERSION`, `testbed.toml`
+At the root stand the Cargo manifest of the service's one package, `testbed.toml`
 (the testbed's declaration of how this repository is tested, checked, built and deployed), the Korean ledger
 the testbed's check reads, `settings.example.env` (every setting both processes read, with neutral example
 values), `PERSONAL-DATA.md` (what personal data may never stand here), `install.toml` (what installing it on a fresh machine needs, which `bmo install` reads),
@@ -71,8 +71,8 @@ values), `PERSONAL-DATA.md` (what personal data may never stand here), `install.
 
 ## Version
 
-- **One version for the whole repository.** `VERSION` holds it, the package's version equals it, and the
-  gateway's `package.json` carries it.
+- **The version is the set's,** read off the git tag when a build is made; the package's version and the
+  gateway's `package.json` version are a placeholder that never moves.
 - **It moves only at a release the owner declares,** as bmo-chat's `docs/conventions.md` 「Versions」 states.
   A commit, a deploy, a fix or a contract change moves none, and a deployment is told apart by its commit.
 

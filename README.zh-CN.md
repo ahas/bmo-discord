@@ -46,7 +46,7 @@ receiver。所有者本人的账号在 gateway 确认之后,以 `human-reader` �
 | `tests/` | 服务唯一的测试入口 `tests/main.rs` 及其模块:针对替身 gateway(`stand_in.rs`)的声明、房间模式、监听、health、文档发送和成员测试 |
 | `docs/` | 关于提供方所做之事的权威说明 |
 
-根目录下有服务唯一一个包的 Cargo 清单、记录在 `VERSION` 中的版本号、`testbed.toml`(testbed 关于本仓库如何测试、
+根目录下有服务唯一一个包的 Cargo 清单、`testbed.toml`(testbed 关于本仓库如何测试、
 检查、构建和部署的声明)、testbed 检查所读取的韩语台账、`settings.example.env`(两个进程读取的全部设置及中性的示例
 值)、`PERSONAL-DATA.md`(绝不能出现在这里的个人数据)、`install.toml`(在新机器上安装所需内容的声明，由 `bmo install` 读取)、`rustfmt.toml` 和 `CLAUDE.md`。
 
@@ -62,7 +62,7 @@ receiver。所有者本人的账号在 gateway 确认之后,以 `human-reader` �
 
 ## 版本
 
-- **整个仓库只有一个版本号。** 它保存在 `VERSION` 中,包的版本与之相同,gateway 的 `package.json` 也使用同一版本。
+- **版本号属于整个套件。** 它在构建时从 git 标签读取,包的版本和 gateway 的 `package.json` 版本只是永不变动的占位值。
 - **版本只在所有者宣布的发布时变动**,如 bmo-chat 的 `docs/conventions.md`「Versions」所述。提交、部署、修复或契约
   变更都不会改变版本,部署以提交来区分。
 

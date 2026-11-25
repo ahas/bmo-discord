@@ -55,7 +55,7 @@ gateway が確認したあとで `human-reader` と `human-avatar` の声で送�
 | `tests/` | サービス唯一のテストハーネス `tests/main.rs` とそのモジュール:スタンドインの gateway(`stand_in.rs`)を相手にする宣言、部屋モード、ヒアリング、health、ドキュメント送信、メンバーのテスト |
 | `docs/` | プロバイダが行うことの正式な記述 |
 
-ルートには、サービス唯一のパッケージの Cargo マニフェスト、`VERSION` に記されたバージョン、`testbed.toml`
+ルートには、サービス唯一のパッケージの Cargo マニフェスト、`testbed.toml`
 (このリポジトリをどうテスト・チェック・ビルド・デプロイするかの testbed 向け宣言)、testbed のチェックが読む韓国語
 台帳、`settings.example.env`(両プロセスが読むすべての設定と中立的な例の値)、`PERSONAL-DATA.md`(ここに決して
 置いてはならない個人データ)、`install.toml`(新しいマシンへのインストールに必要なものの宣言で、`bmo install` が読みます)、`rustfmt.toml`、`CLAUDE.md` があります。
@@ -72,8 +72,8 @@ gateway が確認したあとで `human-reader` と `human-avatar` の声で送�
 
 ## バージョン
 
-- **リポジトリ全体でひとつのバージョンを使います。** `VERSION` がそれを保持し、パッケージのバージョンはそれと等しく、
-  gateway の `package.json` も同じバージョンを持ちます。
+- **バージョンはセット全体のものです。** ビルド時に git タグから読み取り、パッケージのバージョンと gateway の
+  `package.json` のバージョンは動かないプレースホルダーです。
 - **バージョンはオーナーが宣言したリリースでのみ変わります。** bmo-chat の `docs/conventions.md` 「Versions」に
   記されているとおりです。コミット、デプロイ、修正、契約の変更では変わらず、デプロイはコミットで区別します。
 

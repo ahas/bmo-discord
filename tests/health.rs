@@ -87,7 +87,7 @@ async fn with_the_bot_token_set_health_is_ready_once_the_gateway_is() {
 
   configured.read_gateway_health().await;
 
-  assert_eq!(configured.health(), ChatHealth::ready(env!("CARGO_PKG_VERSION")));
+  assert_eq!(configured.health(), ChatHealth::ready(bmo_discord::VERSION));
 }
 
 #[tokio::test]
@@ -95,7 +95,7 @@ async fn a_rejected_bot_token_is_not_ready_and_the_bot_account_waits_on_it() {
   let rejected = provider(true, gateway_health(false, Some(REJECTED)).await);
   rejected.read_gateway_health().await;
 
-  assert_eq!(rejected.health(), ChatHealth::not_ready(env!("CARGO_PKG_VERSION"), REJECTED));
+  assert_eq!(rejected.health(), ChatHealth::not_ready(bmo_discord::VERSION, REJECTED));
   assert_eq!(
     standing(&rejected, ChatVoice::BotAccount),
     (ChatModeStanding::Inactive, Some(REJECTED.to_owned()))
